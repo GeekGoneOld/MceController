@@ -6,7 +6,12 @@ ECHO.
 set CompanyName=Media Center Network Controller
 set AssemblyName=VmcController.Add-In
 set RegistrationFilename=VmcController.Add-In.xml
-set GACUtilPath=C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Bin
+
+IF EXIST C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Bin 
+	set GACUtilPath=C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Bin
+IF EXIST C:\Program Files\Microsoft SDKs\Windows\v7.0A\Bin 
+	set GACUtilPath=C:\Program Files\Microsoft SDKs\Windows\v7.0A\Bin
+
 set ReleaseType=Release
 rem set ReleaseType=Debug
 

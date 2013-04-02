@@ -87,6 +87,7 @@ namespace VmcController.AddIn
             m_commands.Add("goto", new NavigateToPage());
             m_commands.Add("announce", new AnnounceCmd());
             m_commands.Add("run-macro", new MacroCmd());
+            m_commands.Add("suspend", new SuspendCmd());
 
             m_commands.Add("=== Media Experience Commands: ==========", null);
             m_commands.Add("fullscreen", new FullScreenCmd());
@@ -119,7 +120,7 @@ namespace VmcController.AddIn
             m_commands.Add("music-clear-cache", new musicCmd(musicCmd.CLEAR_CACHE));
             m_commands.Add("music-stats", new musicCmd(musicCmd.LIST_STATS));
 
-            m_commands.Add("=== Audio Library Commands: (Depricated - use Music Library Commands!) ==========", null);
+            m_commands.Add("=== Audio Library Commands: (Deprecated - use Music Library Commands!) ==========", null);
             m_commands.Add("list-artists", new artistCmd(false));
             m_commands.Add("list-artist-songs", new artistCmd(false, false, false, artistCmd.show_artists + artistCmd.show_songs, artistCmd.by_artist));
             m_commands.Add("list-artist-albums", new artistCmd(false, false, false, artistCmd.show_artists + artistCmd.show_albums, artistCmd.by_artist));

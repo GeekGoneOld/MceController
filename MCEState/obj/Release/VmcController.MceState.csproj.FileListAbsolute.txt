@@ -28,3 +28,8 @@ C:\Temp\mce\MCEState\bin\Release\VmcController.Services.dll
 C:\Temp\mce\MCEState\bin\Release\VmcController.Services.pdb
 C:\Temp\mce\MCEState\obj\Release\ResolveAssemblyReference.cache
 C:\Temp\mce\MCEState\obj\Release\VmcController.MceState.dll
+C:\Users\Rune\Documents\GitHub\MceController\MCEState\bin\Release\VmcController.MceState.dll
+C:\Users\Rune\Documents\GitHub\MceController\MCEState\bin\Release\VmcController.Services.dll
+C:\Users\Rune\Documents\GitHub\MceController\MCEState\bin\Release\VmcController.Services.pdb
+C:\Users\Rune\Documents\GitHub\MceController\MCEState\obj\Release\ResolveAssemblyReference.cache
+C:\Users\Rune\Documents\GitHub\MceController\MCEState\obj\Release\VmcController.MceState.dll

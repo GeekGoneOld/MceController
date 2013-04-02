@@ -129,6 +129,7 @@
     <Compile Include="AddInModule.cs" />
     <Compile Include="Commands\AnnounceCmd.cs" />
     <Compile Include="Commands\CapabilitiesCmd.cs" />
+    <Compile Include="Commands\SuspendCmd.cs" />
     <Compile Include="Commands\NotBoxCmd.cs" />
     <Compile Include="Commands\NotBoxRichCmd.cs" />
     <Compile Include="getFileInfo.cs" />

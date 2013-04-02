@@ -81,7 +81,8 @@ namespace VmcController.AddIn
                 int i = mySocket.Receive(bReceive, bReceive.Length, 0);
 
                 //Convert Byte to String
-                string sBuffer = Encoding.ASCII.GetString(bReceive);
+                //string sBuffer = Encoding.ASCII.GetString(bReceive);
+                string sBuffer = Encoding.UTF8.GetString(bReceive);
 
                 //At present we will only deal with GET type
                 if (sBuffer.Substring(0, 3) != "GET")
@@ -132,12 +133,13 @@ namespace VmcController.AddIn
             if (httpSocket == null)
                 throw new ArgumentNullException("httpSocket");
 
-            byte[] byData = System.Text.Encoding.ASCII.GetBytes(text);
+            //byte[] byData = System.Text.Encoding.ASCII.GetBytes(text);
+            byte[] byData = System.Text.Encoding.UTF8.GetBytes(text);
             try
             {
                 if (httpSocket.Connected)
                 {
-                    SendHeader(m_sHttpVersion, "text/html", byData.Length, " 200 OK", ref httpSocket);
+                    SendHeader(m_sHttpVersion, "text/html;charset=utf-8", byData.Length, " 200 OK", ref httpSocket);
                     SendToBrowser(byData, ref httpSocket);
                     httpSocket.Close();
                 }
