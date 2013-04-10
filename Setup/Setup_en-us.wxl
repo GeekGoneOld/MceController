@@ -3,21 +3,21 @@
 
   <String Id="LaunchCondition_AdminPrivs">You must have Administrative rights on this machine to install [ProductName].</String>
   <String Id="LaunchCondition_LaterVersion">A later version of [ProductName] is already installed.</String>
-  <String Id="LaunchCondition_WrongOSVersion">[ProductName] is designed for Windows 7 Media Center only or you don't have Windows Media Center.</String>
+  <String Id="LaunchCondition_WrongOSVersion">[ProductName] is designed for Windows 7/8 Media Center only or you don't have Windows Media Center.</String>
 
-  <String Id="Property_ArpHelpLink">http://msdn.microsoft.com/mce/</String>
-  <String Id="Property_ArpUrlInfoAbout">http://msdn.microsoft.com/mce/</String>
+  <String Id="Property_ArpHelpLink">https://play.google.com/store/apps/details?id=com.dinobud.Emote</String>
+  <String Id="Property_ArpUrlInfoAbout">https://github.com/gjniewenhuijse/MceController</String>
   <String Id="Property_ProductLanguage">1033</String>
-  <String Id="Property_ProductName">Media Center TCP/IP Controller</String>
-  <String Id="Property_CompanyName">Codeplex</String>
+  <String Id="Property_ProductName">Emote for Windows Media Center Plugin</String>
+  <String Id="Property_CompanyName">dinobud</String>
 
-  <String Id="Package_Description">Media Center TCP/IP Controller</String>
-  <String Id="Package_Comments">Control your MCE via TCP/IP</String>
+  <String Id="Package_Description">Emote for Windows Media Center Plugin</String>
+  <String Id="Package_Comments">Control your Media Center via your Android phone using Emote!</String>
 
-  <String Id="Z_Shortcut_Title">MCTC</String>
-  <String Id="Z_Shortcut_Description">MCTC</String>
+  <String Id="Z_Shortcut_Title">EWMCP</String>
+  <String Id="Z_Shortcut_Description">EWMCP</String>
 
-  <String Id="DownloadManager_DisplayName">Media Center TCP/IP Controller</String>
-  <String Id="DownloadManager_Description">Media Center TCP/IP Controller</String>
+  <String Id="DownloadManager_DisplayName">Emote for Windows Media Center Plugin</String>
+  <String Id="DownloadManager_Description">Emote for Windows Media Center Plugin</String>
 
 </WixLocalization>

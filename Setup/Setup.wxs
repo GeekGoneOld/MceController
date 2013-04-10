@@ -1,9 +1,10 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
-<?define Property_ProductVersion = "1.0.0.0" ?>
+<?define Property_ProductVersion = "1.1.0.0" ?>
 <?define Property_ProductCode = "941d39c1-e9eb-41f7-881c-3313725340a4" ?>
 <?define Property_UpgradeCode = "e97b6ad4-5870-442f-8837-aa2ce19b1b31" ?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
-		 xmlns:complus="http://schemas.microsoft.com/wix/ComPlusExtension">
+		 xmlns:complus="http://schemas.microsoft.com/wix/ComPlusExtension"
+     xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
 
 	<Product Id="$(var.Property_ProductCode)"
 					 UpgradeCode="$(var.Property_UpgradeCode)"
@@ -145,6 +146,12 @@
 				</RegistryKey>
 			</Component>
 
+      <!-- Add Media Center Extensibility Host & Media Center Media Status Aggregator Service to firewall -->
+      <Component Id="FirewallEntries" Guid="B6872EA7-2B43-4BA6-B0C9-0E45F60D9745">
+        <fire:FirewallException Id="MCEHF" Name="Media Center Extensibility Host" IgnoreFailure="no" Program="%windir%\ehome\ehexthost.exe" Profile="private" Scope="any"/>
+        <fire:FirewallException Id="MCMSASF" Name="Media Center Media Status Aggregator Service" IgnoreFailure="no" Program="%windir%\ehome\ehmsas.exe" Profile="private" Scope="any"/>
+      </Component>
+
 		</DirectoryRef>
 
 		<DirectoryRef Id="APPROOTDIRECTORY">
@@ -205,6 +212,7 @@
 			<ComponentRef Id="Registration.xml" />
 			<ComponentRef Id="MediaSinkRegistryEntries" />
 			<ComponentRef Id="ExtenderRegistryEntries" />
+      <ComponentRef Id="FirewallEntries" />
 		</Feature>
 
 		<Media Id="1"

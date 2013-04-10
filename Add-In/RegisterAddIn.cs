@@ -8,12 +8,14 @@ using System.EnterpriseServices.Internal;
 using Microsoft.MediaCenter.Hosting;
 using VmcController.AddIn.Properties;
 using System.IO;
+using VmcController.AddIn.Commands;
 
 namespace VmcController.AddIn
 {
     [RunInstaller(true)]
     public partial class RegisterAddIn : Installer
-    {
+    {        
+
         /// <summary>
         /// Initializes a new instance of the <see cref="RegisterAddIn"/> class.
         /// </summary>

@@ -88,6 +88,7 @@ namespace VmcController.AddIn
             m_commands.Add("announce", new AnnounceCmd());
             m_commands.Add("run-macro", new MacroCmd());
             m_commands.Add("suspend", new SuspendCmd());
+            m_commands.Add("restartmc", new RestartMcCmd());
 
             m_commands.Add("=== Media Experience Commands: ==========", null);
             m_commands.Add("fullscreen", new FullScreenCmd());
@@ -100,6 +101,7 @@ namespace VmcController.AddIn
 
             m_commands.Add("=== Environment Commands: ==========", null);
             m_commands.Add("version", new VersionInfoCmd());
+            m_commands.Add("version-plugin", new VersionInfoPluginCmd());
             m_commands.Add("capabilities", new CapabilitiesCmd());
             m_commands.Add("changer-load", new ChangerCmd());
 
@@ -119,23 +121,6 @@ namespace VmcController.AddIn
             m_commands.Add("music-cover", new musicCmd(musicCmd.SERV_COVER));
             m_commands.Add("music-clear-cache", new musicCmd(musicCmd.CLEAR_CACHE));
             m_commands.Add("music-stats", new musicCmd(musicCmd.LIST_STATS));
-
-            m_commands.Add("=== Audio Library Commands: (Deprecated - use Music Library Commands!) ==========", null);
-            m_commands.Add("list-artists", new artistCmd(false));
-            m_commands.Add("list-artist-songs", new artistCmd(false, false, false, artistCmd.show_artists + artistCmd.show_songs, artistCmd.by_artist));
-            m_commands.Add("list-artist-albums", new artistCmd(false, false, false, artistCmd.show_artists + artistCmd.show_albums, artistCmd.by_artist));
-            m_commands.Add("list-albums", new artistCmd(false, false, false, artistCmd.show_artists + artistCmd.show_albums));
-            m_commands.Add("list-album-songs", new artistCmd(false, false, false, artistCmd.show_artists + artistCmd.show_albums + artistCmd.show_songs, artistCmd.by_album));
-            m_commands.Add("list-all-custom", new artistCmd(false, false, false, 0, artistCmd.by_all));
-            m_commands.Add("list-artist-custom", new artistCmd(false, false, false, 0, artistCmd.by_artist));
-            m_commands.Add("list-album-custom", new artistCmd(false, false, false, 0, artistCmd.by_album));
-            m_commands.Add("list-song-custom", new artistCmd(false, false, false, 0, artistCmd.by_track));
-            m_commands.Add("play-audio-artist", new artistCmd(true, false, false, artistCmd.show_artists + artistCmd.show_songs, artistCmd.by_artist));
-            m_commands.Add("play-audio-album", new artistCmd(true, false, false, artistCmd.show_artists + artistCmd.show_albums + artistCmd.show_songs, artistCmd.by_album));
-            m_commands.Add("play-audio-song", new artistCmd(true, false, false, artistCmd.show_artists + artistCmd.show_albums + artistCmd.show_songs, artistCmd.by_track));
-            m_commands.Add("queueaudio-artist", new artistCmd(true, true, false, artistCmd.show_artists + artistCmd.show_songs, artistCmd.by_artist));
-            m_commands.Add("queueaudio-album", new artistCmd(true, true, false, artistCmd.show_artists + artistCmd.show_albums + artistCmd.show_songs, artistCmd.by_album));
-            m_commands.Add("queueaudio-song", new artistCmd(true, true, false, artistCmd.show_artists + artistCmd.show_albums + artistCmd.show_songs, artistCmd.by_track));
 
             m_commands.Add("=== Photo Library Commands: ==========", null);
             m_commands.Add("photo-clear-cache", new photoCmd(photoCmd.CLEAR_CACHE));

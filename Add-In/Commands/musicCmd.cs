@@ -420,6 +420,7 @@ namespace VmcController.AddIn.Commands
 
             return s;
         }
+
         private string first_letter(string s)
         {
             if (s == null || s.Length == 0) return " ";
@@ -433,6 +434,7 @@ namespace VmcController.AddIn.Commands
 
             return ret;
         }
+
         private string replacer(string s, int index)
         {
             /* The URL parameters*/
@@ -473,9 +475,9 @@ namespace VmcController.AddIn.Commands
             s = do_conditional_replace(s, "trackCount", String.Format("{0}", the_state.trackCount));
             s = do_conditional_replace(s, "albumCount", String.Format("{0}", the_state.albumCount));
 
-
             return s;
         }
+
         private OpResult do_basic_list(OpResult or, WMPLib.IWMPStringCollection list, string list_type, string template, string default_template)
         {
             int result_count = list.count;
@@ -668,6 +670,7 @@ namespace VmcController.AddIn.Commands
 
             return s;
         }
+
         private string getTemplate(string template, string default_template)
         {
             string tmp = "";
@@ -693,6 +696,7 @@ namespace VmcController.AddIn.Commands
 
             return fn;
         }
+
         public bool check_cache(string cur_ver)
         {
             bool ret_val = true;
@@ -709,11 +713,13 @@ namespace VmcController.AddIn.Commands
 
             return ret_val;
         }
+
         public void clear_cache()
         {
             try { System.IO.Directory.Delete(CACHE_MUSIC_CMD_DIR, true); }
             catch (Exception) { return; }
         }
+
         public void save_to_cache(string fn, string content, string cur_ver)
         {
             check_cache(cur_ver);
@@ -738,6 +744,7 @@ namespace VmcController.AddIn.Commands
 
             return;
         }
+
         public string get_cached(string fn, string cur_ver)
         {
             string cached = "";
@@ -754,7 +761,7 @@ namespace VmcController.AddIn.Commands
                     cached = System.IO.File.ReadAllText(cached_file);
                 }
             }
-            catch (Exception e) { return ""; }
+            catch (Exception) { return ""; }
 
             return cached;
         }
@@ -792,6 +799,7 @@ namespace VmcController.AddIn.Commands
 
             return mrp_content;
         }
+
         public void add_to_mrp(string recent_text_type, string recent_text, string param, int track_count)
         {
             string mrp_file = CACHE_DIR + "\\mrp_list.dat";
@@ -879,6 +887,7 @@ namespace VmcController.AddIn.Commands
         {
             return list_recent(or, template, -1);
         }
+
         private OpResult list_recent(OpResult or, string template, int count)
         {
             ArrayList mrp_content = get_mrp(true);
@@ -1138,7 +1147,6 @@ namespace VmcController.AddIn.Commands
                     case CLEAR_CACHE:
                         clear_cache();
                         return opResult;
-                        break;
                     case LIST_GENRES:
                         cache_body = get_cached(cache_fn, cache_ver);
                         if (cache_body.Length == 0)
@@ -1219,7 +1227,6 @@ namespace VmcController.AddIn.Commands
                         }
                         else list_recent(opResult, template);
                         return opResult;
-                        break;
                     case LIST_STATS:
                         cache_body = get_cached(cache_fn, cache_ver);
                         if (cache_body.Length == 0)
