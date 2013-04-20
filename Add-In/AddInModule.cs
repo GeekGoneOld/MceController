@@ -126,6 +126,7 @@ namespace VmcController.AddIn
                 m_socketServer.StartListening(GetPortNumber(m_basePortNumber));
                 m_socketServer.NewMessage += new EventHandler<SocketEventArgs>(m_socketServer_NewMessage);
                 m_socketServer.Connected += new EventHandler<SocketEventArgs>(m_socketServer_Connected);
+                m_socketServer.Disconnected += new EventHandler<SocketEventArgs>(m_socketServer_Disconnected);
 
                 //  Setup HTTP socket listener
                 m_httpServer.StartListening(GetPortNumber(m_basePortNumber) + 10);
@@ -162,6 +163,9 @@ namespace VmcController.AddIn
             }
             finally
             {
+                // Close RemotedWindowsMediaPlayer
+                //new GetNowPlaying(true);
+
                 //  Shutdown listener
                 if (m_socketServer.PortNumber > 0)
                     m_socketServer.StopListening();
@@ -179,6 +183,17 @@ namespace VmcController.AddIn
                 "204 Connected (Clients: {0} Version: {1} Build Date: {2})\r\n",
                 m_socketServer.Count, VersionInfo,
                 RetrieveLinkerTimestamp().ToShortDateString()), e.TcpClient);
+        }
+
+        /// <summary>
+        /// Handles the Disconnected event of the m_socketServer control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="SocketServer.SocketEventArgs"/> instance containing the event data.</param>
+        void m_socketServer_Disconnected(object sender, SocketEventArgs e)
+        {
+            // Close RemotedWindowsMediaPlayer
+            //new GetNowPlaying(true);
         }
 
         /// <summary>

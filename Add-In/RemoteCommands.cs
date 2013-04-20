@@ -121,6 +121,7 @@ namespace VmcController.AddIn
             m_commands.Add("music-cover", new musicCmd(musicCmd.SERV_COVER));
             m_commands.Add("music-clear-cache", new musicCmd(musicCmd.CLEAR_CACHE));
             m_commands.Add("music-stats", new musicCmd(musicCmd.LIST_STATS));
+            //m_commands.Add("music-list-now-playing", new GetNowPlaying(false));
 
             m_commands.Add("=== Photo Library Commands: ==========", null);
             m_commands.Add("photo-clear-cache", new photoCmd(photoCmd.CLEAR_CACHE));
