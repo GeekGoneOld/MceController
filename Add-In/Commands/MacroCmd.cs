@@ -22,11 +22,11 @@ using System.Xml;
 
 namespace VmcController.AddIn.Commands
 {
-	/// <summary>
-	/// Summary description for MsgBox command.
-	/// </summary>
-	public class MacroCmd : ICommand
-	{
+    /// <summary>
+    /// Summary description for MsgBox command.
+    /// </summary>
+    public class MacroCmd : ICommand
+    {
         #region ICommand Members
 
         /// <summary>
@@ -50,7 +50,7 @@ namespace VmcController.AddIn.Commands
             try
             {
                 XmlDocument doc = new XmlDocument();
-                
+
                 doc.Load(System.Environment.GetEnvironmentVariable("windir") + "\\ehome\\vmcController.xml");
 
                 XmlNodeList commands = doc.DocumentElement.SelectNodes("macros/macro[@id='" + param + "']/action");
@@ -59,14 +59,15 @@ namespace VmcController.AddIn.Commands
                 {
                     opResult.StatusCode = OpStatusCode.Exception;
                     opResult.StatusText = "Macro not found";
-                } else
+                }
+                else
                 {
                     RemoteCommands rc = new RemoteCommands();
                     OpResult innerOp;
                     opResult.StatusCode = OpStatusCode.Ok;
                     foreach (XmlNode command in commands)
                     {
-                        innerOp = rc.Execute(command.Attributes.GetNamedItem("command").Value,command.InnerText);
+                        innerOp = rc.Execute(command.Attributes.GetNamedItem("command").Value, command.InnerText);
                         opResult.StatusText += innerOp.StatusCode.ToString() + ": " + innerOp.StatusText + "<br>";
                     }
                 }

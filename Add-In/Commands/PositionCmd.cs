@@ -57,7 +57,7 @@ namespace VmcController.AddIn.Commands
             opResult.StatusCode = OpStatusCode.Success;
             try
             {
-                if (AddInHost.Current.MediaCenterEnvironment.MediaExperience == null)
+                if (AddInModule.getMediaExperience() == null)
                 {
                     opResult.StatusCode = OpStatusCode.BadRequest;
                     opResult.AppendFormat("No media playing");

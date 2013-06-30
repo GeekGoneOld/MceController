@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
-<?define Property_ProductVersion = "1.1.0.0" ?>
-<?define Property_ProductCode = "941d39c1-e9eb-41f7-881c-3313725340a4" ?>
-<?define Property_UpgradeCode = "e97b6ad4-5870-442f-8837-aa2ce19b1b31" ?>
+<?define Property_ProductVersion = "1.5.0.0" ?>
+<?define Property_ProductCode = "babeb4de-ec87-4055-ac54-33c4551f52be" ?>
+<?define Property_UpgradeCode = "e97b6ad4-5870-442F-8837-aa2ce19b1b31" ?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
 		 xmlns:complus="http://schemas.microsoft.com/wix/ComPlusExtension"
      xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
@@ -18,25 +18,13 @@
 						 InstallerVersion="200"
 						 Compressed="yes" />
 
-		<Upgrade Id="$(var.Property_UpgradeCode)">
-			<UpgradeVersion Minimum="$(var.Property_ProductVersion)"
-											OnlyDetect="yes"
-											Property="NEWERVERSIONDETECTED" />
-			<UpgradeVersion Minimum="0.0.0.0"
-											IncludeMinimum="yes"
-											Maximum="$(var.Property_ProductVersion)"
-											IncludeMaximum="no"
-											Property="OLDERVERSIONBEINGUPGRADED" />
-		</Upgrade>
+    <MajorUpgrade DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
 
 		<Binary Id="License.txt"
 						SourceFile="..\setup\License.txt" />
 
 		<Binary Id="LicenseAccessible.txt"
 						SourceFile="..\setup\LicenseAccessible.txt" />
-
-		<CustomAction Id="CA_BlockOlderVersionInstall"
-									Error="!(loc.LaunchCondition_LaterVersion)" />
 
 		<CustomAction Id="CA_ErrWrongWindowsVersion"
 									Error="!(loc.LaunchCondition_WrongOSVersion)" />
@@ -179,6 +167,18 @@
 							Vital="yes"
 							Assembly=".net"/>
 			</Component>
+      
+      <Component Id="Newtonsoft.Json.dll"
+								 Guid="5711a542-a976-4eb5-9612-152770ad8f0f"
+								 DiskId="1">
+				<File Id="Newtonsoft.Json.dll"
+							Name="Newtonsoft.Json.dll"
+							KeyPath="yes"
+							Source="..\packages\Newtonsoft.Json.5.0.6\lib\net35\Newtonsoft.Json.dll"
+							Checksum="yes"
+							Vital="yes"
+							Assembly=".net"/>
+			</Component>
 
 			<Component Id="Interop_WMPLib.dll"
 								 Guid="5a2b7cf5-c6dc-4f7a-adb8-e1df03075de2"
@@ -208,7 +208,7 @@
 			<ComponentRef Id="VmcController_AddIn.dll" />
 			<ComponentRef Id="Interop_WMPLib.dll" />
 			<ComponentRef Id="MediaSink_dll" />
-			<!--<ComponentRef Id="MSASInterop_dll" />-->
+			<ComponentRef Id="Newtonsoft.Json.dll" />
 			<ComponentRef Id="Registration.xml" />
 			<ComponentRef Id="MediaSinkRegistryEntries" />
 			<ComponentRef Id="ExtenderRegistryEntries" />
@@ -264,12 +264,7 @@
 									Impersonate="no"/>
 
 		<InstallExecuteSequence>
-			<Custom Action="CA_BlockOlderVersionInstall"
-							After="FindRelatedProducts">
-				<![CDATA[NEWERVERSIONDETECTED]]>
-			</Custom>
 
-			<RemoveExistingProducts After="InstallFinalize" />
 			<LaunchConditions After="AppSearch"/>
 
 			<Custom Action="CA_ErrWrongWindowsVersion"
@@ -319,11 +314,6 @@
 		</InstallExecuteSequence>
 
 		<InstallUISequence>
-			<Custom Action="CA_BlockOlderVersionInstall"
-							After="FindRelatedProducts">
-				<![CDATA[NEWERVERSIONDETECTED]]>
-			</Custom>
-
 			<Custom Action="CA_ErrWrongWindowsVersion"
 							Before="CostInitialize">
 				<![CDATA[(NOT VersionNT >= 601 OR NOT REGISTERMCEAPP) AND NOT Installed]]>

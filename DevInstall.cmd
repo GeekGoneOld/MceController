@@ -6,14 +6,12 @@ ECHO.
 set CompanyName=Media Center Network Controller
 set AssemblyName=VmcController.Add-In
 set RegistrationFilename=VmcController.Add-In.xml
-
-IF EXIST C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Bin 
-	set GACUtilPath=C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Bin
-IF EXIST C:\Program Files\Microsoft SDKs\Windows\v7.0A\Bin 
-	set GACUtilPath=C:\Program Files\Microsoft SDKs\Windows\v7.0A\Bin
+set GACUtilPath=C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A\Bin
 
 set ReleaseType=Release
 rem set ReleaseType=Debug
+
+ECHO %GACUtilPath%
 
 REM Determine whether we are on an 32 or 64 bit machine
 if "%PROCESSOR_ARCHITECTURE%"=="x86" if "%PROCESSOR_ARCHITEW6432%"=="" goto x86
@@ -39,8 +37,10 @@ goto unregister
 	%windir%\ehome\RegisterMCEApp.exe /allusers "%ProgramFilesPath%\%CompanyName%\%RegistrationFilename%" /u
 	ECHO.
 
-	ECHO.Remove the DLL from the Global Assembly cache
+	ECHO.Remove the DLLs from the Global Assembly cache
 	"%GACUtilPath%\gacutil.exe" /u "%AssemblyName%"
+	"%GACUtilPath%\gacutil.exe" /u Newtonsoft.Json
+	"%GACUtilPath%\gacutil.exe" /u Interop.WMPLib
 	ECHO.
 
 	ECHO.Delete the folders containing the DLLs and supporting files (silent if successful)
@@ -82,14 +82,11 @@ goto unregister
 	md "%ProgramFilesPath%\%CompanyName%"
 	ECHO.
 	
-	ECHO.Copy the assembly to Program Files
+	ECHO.Copy the add-in assembly to Program Files
 	copy /y ".\Add-In\bin\%ReleaseType%\*.dll" "%ProgramFilesPath%\%CompanyName%\"
 	
-	ECHO.Copy the assembly to Program Files
-	copy /y ".\MCEState\bin\%ReleaseType%\*.dll" "%ProgramFilesPath%\%CompanyName%\"	
-	
-	ECHO.Copy the assembly to Program Files
-	copy /y ".\VmcServices\bin\%ReleaseType%\*.dll" "%ProgramFilesPath%\%CompanyName%\"
+	ECHO.Copy the status sink assembly to Program Files
+	copy /y ".\Status\bin\%ReleaseType%\*.dll" "%ProgramFilesPath%\%CompanyName%\"		
 
 	ECHO.Copy the registration XML to program files
 	copy /y ".\Add-In\%RegistrationFilename%" "%ProgramFilesPath%\%CompanyName%\"
@@ -98,9 +95,13 @@ goto unregister
 	ECHO.Register the DLL with the global assembly cache
 	"%GACUtilPath%\gacutil.exe" /if "%ProgramFilesPath%\%CompanyName%\%AssemblyName%.dll"
 	ECHO.
-  
-  ECHO.Register the Interop DLL with the global assembly cache
+	
+	ECHO.Register the Interop DLL with the global assembly cache
 	"%GACUtilPath%\gacutil.exe" /if "%ProgramFilesPath%\%CompanyName%\Interop.WMPLib.dll"
+	ECHO.
+
+	ECHO.Register the Newtonsoft.Json DLL with the global assembly cache
+	"%GACUtilPath%\gacutil.exe" /if "%ProgramFilesPath%\%CompanyName%\Newtonsoft.Json.dll"
 	ECHO.
 
 	ECHO.Register the application with Windows Media Center

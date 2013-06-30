@@ -16,30 +16,23 @@
  */
 using System;
 using System.Text;
-using Microsoft.MediaCenter;
-using Microsoft.MediaCenter.Hosting;
+using WMPLib;
 
 namespace VmcController.AddIn.Commands
 {
 	/// <summary>
 	/// Summary description for PlayRate command.
 	/// </summary>
-	public class PlayRateCmd : ICommand
+	public class PlayRateCmd : WmpICommand
 	{
         private bool m_set = true;
-        private bool m_state = false;
 
         public PlayRateCmd(bool bSet)
         {
             m_set = bSet;
-            m_state = false;
         }
-        public PlayRateCmd(bool bSet, bool bState)
-        {
-            m_set = bSet;
-            m_state = bState;
-        }
-        #region ICommand Members
+
+        #region WmpICommand Members
 
         /// <summary>
         /// Shows the syntax.
@@ -48,18 +41,26 @@ namespace VmcController.AddIn.Commands
         public string ShowSyntax()
         {
             String s;
-            if (!m_state)
-            {
-                StringBuilder sb = new StringBuilder("");
+            StringBuilder sb = new StringBuilder("");
+            if (m_set)
+            {               
                 foreach (string value in Enum.GetNames(typeof(PlayRateEnum)))
+                {
                     sb.AppendFormat("{0}|", value);
+                }
                 sb.Remove(sb.Length - 1, 1);
-
-                if (m_set) s = "<" + sb.ToString() + "> - sets the play rate";
-                else s = "- returns the play rate (one of " + sb.ToString() + ")";
+                s = "<" + sb.ToString() + "> - sets the play rate";
             }
-            else s = "- returns the current play state";
-
+            else
+            {
+                foreach (string value in Enum.GetNames(typeof(WMPPlayState)))
+                {
+                    string modValue = value.Remove(0, 5);
+                    sb.AppendFormat("{0}|", modValue);
+                }
+                sb.Remove(sb.Length - 1, 1);
+                s = "- returns the play state (one of " + sb.ToString() + ")";
+            }
             return s;
         }
 
@@ -71,10 +72,15 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public OpResult Execute(string param)
         {
+            throw new NotImplementedException();
+        }
+
+        public OpResult Execute(RemotedWindowsMediaPlayer remotePlayer, string param)
+        {
             OpResult opResult = new OpResult();
             try
             {
-                if (AddInHost.Current.MediaCenterEnvironment.MediaExperience == null)
+                if (remotePlayer.getPlayState() == WMPPlayState.wmppsUndefined)
                 {
                     if (m_set)
                     {
@@ -90,34 +96,63 @@ namespace VmcController.AddIn.Commands
                 else if (m_set)
                 {
                     PlayRateEnum playRate = (PlayRateEnum)Enum.Parse(typeof(PlayRateEnum), param, true);
-                    if (playRate == PlayRateEnum.SkipForward)
-                        AddInHost.Current.MediaCenterEnvironment.MediaExperience.Transport.SkipForward();
-                    else if (playRate == PlayRateEnum.SkipBack)
-                        AddInHost.Current.MediaCenterEnvironment.MediaExperience.Transport.SkipBack();
-                    else
-                        AddInHost.Current.MediaCenterEnvironment.MediaExperience.Transport.PlayRate = (Single)playRate;
-                }
-                else if (!m_state)
-                {
-                    int rate = (int)AddInHost.Current.MediaCenterEnvironment.MediaExperience.Transport.PlayRate;
-                    opResult.AppendFormat("PlayRate={0}", Enum.GetNames(typeof(PlayRateEnum))[rate]);
+                    switch (playRate)
+                    {
+                        case PlayRateEnum.Pause:
+                            remotePlayer.getPlayerControls().pause();
+                            break;
+                        case PlayRateEnum.Play:
+                            remotePlayer.getPlayerControls().play();
+                            break;
+                        case PlayRateEnum.Stop:
+                            remotePlayer.getPlayerControls().stop();
+                            break;
+                        case PlayRateEnum.FR:
+                            if (remotePlayer.getPlayerControls().get_isAvailable("FastReverse"))
+                            {
+                                remotePlayer.getPlayerControls().fastReverse();
+                            }
+                            else
+                            {
+                                throw new Exception("Not supported");
+                            }
+                            break;
+                        case PlayRateEnum.FF:
+                            if (remotePlayer.getPlayerControls().get_isAvailable("FastForward"))
+                            {
+                                remotePlayer.getPlayerControls().fastForward();
+                            }
+                            else
+                            {
+                                throw new Exception("Not supported");
+                            }
+                            break;
+                        case PlayRateEnum.SkipBack:
+                            remotePlayer.getPlayerControls().previous();
+                            break;
+                        case PlayRateEnum.SkipForward:
+                            remotePlayer.getPlayerControls().next();
+                            break;
+                    }
+                    opResult.StatusCode = OpStatusCode.Success;
                 }
                 else
                 {
-                    PlayState state = AddInHost.Current.MediaCenterEnvironment.MediaExperience.Transport.PlayState;
-                    opResult.AppendFormat("PlayState={0}", Enum.GetName(typeof(PlayState), state));
-                }
-                opResult.StatusCode = OpStatusCode.Success;
+                    WMPPlayState state = remotePlayer.getPlayState();
+                    string value = Enum.GetName(typeof(WMPPlayState), state).Remove(0, 5);
+                    opResult.AppendFormat("PlayState={0}", value);
+                    opResult.StatusCode = OpStatusCode.Success;
+                }                                
             }
             catch (Exception ex)
             {
                 opResult.StatusCode = OpStatusCode.Exception;
                 opResult.AppendFormat(ex.Message);
             }
-            return opResult;
+            return opResult;            
         }
 
-        #endregion
+        #endregion        
     }
 
     enum PlayRateEnum
@@ -125,17 +160,9 @@ namespace VmcController.AddIn.Commands
         Stop,
         Pause,
         Play,
-        FF1,
-        FF2,
-        FF3,
-        Rewind1,
-        Rewind2,
-        Rewind3,
-        SlowMotion1,
-        SlowMotion2,
-        SlowMotion3,
+        FF,
+        FR,
         SkipForward,
         SkipBack
     }
-
 }

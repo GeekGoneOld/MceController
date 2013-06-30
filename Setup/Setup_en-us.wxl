@@ -6,7 +6,7 @@
   <String Id="LaunchCondition_WrongOSVersion">[ProductName] is designed for Windows 7/8 Media Center only or you don't have Windows Media Center.</String>
 
   <String Id="Property_ArpHelpLink">https://play.google.com/store/apps/details?id=com.dinobud.Emote</String>
-  <String Id="Property_ArpUrlInfoAbout">https://github.com/gjniewenhuijse/MceController</String>
+  <String Id="Property_ArpUrlInfoAbout">https://sites.google.com/site/emoteforandroid/</String>
   <String Id="Property_ProductLanguage">1033</String>
   <String Id="Property_ProductName">Emote for Windows Media Center Plugin</String>
   <String Id="Property_CompanyName">dinobud</String>

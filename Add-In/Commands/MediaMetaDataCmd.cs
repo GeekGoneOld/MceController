@@ -51,38 +51,11 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public OpResult Execute(string param)
         {
-            var mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
-
-            // possible workaround for Win7/8 bug
-            if (mce == null)
-            {
-                System.Threading.Thread.Sleep(200);
-                mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
-                if (mce == null)
-                {
-                    try
-                    {
-                        var fi = AddInHost.Current.MediaCenterEnvironment.GetType().GetField("_checkedMediaExperience", BindingFlags.NonPublic | BindingFlags.Instance);
-                        if (fi != null)
-                        {
-                            fi.SetValue(AddInHost.Current.MediaCenterEnvironment, false);
-                            mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
-                        }
-
-                    }
-                    catch (Exception)
-                    {
-                        // give up 
-                    }
-
-                }
-            }
-
             // Now try to read again
             OpResult opResult = new OpResult();
             try
             {
-                if (AddInHost.Current.MediaCenterEnvironment.MediaExperience == null)
+                if (AddInModule.getMediaExperience() == null)
                 {
                     opResult.StatusCode = OpStatusCode.BadRequest;
                     opResult.AppendFormat("No media playing");

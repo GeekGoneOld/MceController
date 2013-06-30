@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2013 Skip Mercier
  * Copyright (c) 2007 Jonathan Bradshaw
  * 
  * This software is provided 'as-is', without any express or implied warranty. 
@@ -19,20 +20,50 @@ using System.Text;
 using System.Collections.Generic;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
-using ehiProxy;
+using WMPLib;
+using System.Threading;
+using System.Collections;
 
 namespace VmcController.AddIn.Commands {
+
 	/// <summary>
-	/// Summary description for MsgBox command.
+	/// Summary description for PlayMediaCmd command.
 	/// </summary>
 	public class PlayMediaCmd : ICommand {
-		private MediaType m_mediaType;
+
+        private WindowsMediaPlayer Player;
+        private IWMPPlaylist m_playlist;
+        private ArrayList m_indexes;
 		private bool m_appendToQueue;
 
-		public PlayMediaCmd(MediaType mediaType, bool appendToQueue) {
-			m_mediaType = mediaType;
+
+        public PlayMediaCmd(RemotedWindowsMediaPlayer remotePlayer, IWMPPlaylist playlist, bool appendToQueue)
+        {
+            initPlayer(remotePlayer);
+            m_indexes = null;
+            m_playlist = playlist;
+            m_appendToQueue = appendToQueue;
+        }
+
+        public PlayMediaCmd(RemotedWindowsMediaPlayer remotePlayer, IWMPPlaylist playlist, ArrayList indexes, bool appendToQueue)
+        {
+            initPlayer(remotePlayer);
+            m_indexes = indexes;
+            m_playlist = playlist;
 			m_appendToQueue = appendToQueue;
 		}
+
+        private void initPlayer(RemotedWindowsMediaPlayer remotePlayer)
+        {
+            if (remotePlayer == null)
+            {
+                Player = null;
+            }
+            else
+            {
+                Player = remotePlayer.getPlayer();
+            }
+        }
 
 		#region ICommand Members
 
@@ -41,7 +72,7 @@ namespace VmcController.AddIn.Commands {
 		/// </summary>
 		/// <returns></returns>
 		public string ShowSyntax() {
-			return "<" + m_mediaType.ToString() + " parameters>";
+			return "<" + "IWMPPlaylist parameters>";
 		}
 
 		/// <summary>
@@ -51,40 +82,82 @@ namespace VmcController.AddIn.Commands {
 		/// <param name="result">The result.</param>
 		/// <returns></returns>
 		public OpResult Execute(string param) {
-			OpResult opResult = new OpResult();
-			try {
-				switch (m_mediaType) {
-					case MediaType.Dvd:
-						param = param.Replace('\\', '/');
-						break;
-					case MediaType.Audio:
-					case MediaType.Video:
-					case MediaType.Dvr:
-						param = param.Replace(@"\", @"\\");
-						break;
-						//case MediaType.TV:
-						//    //  Check for a channel number and convert to a callsign
-						//    int channelNum;
-						//    if (int.TryParse(param, out channelNum))
-						//    {
-						//        Channel channel = Guide.GuideInstance.GetChannelByNumber(channelNum);
-						//        if (channel != null) param = channel.DefaultService.CallSign;
-						//    }
-						//    break;
-				}
-				if (AddInHost.Current.MediaCenterEnvironment.PlayMedia(m_mediaType, param, m_appendToQueue)) {
-					opResult.StatusCode = OpStatusCode.Success;
-				}
-				else {
-					opResult.StatusCode = OpStatusCode.BadRequest;
-				}
-			}
-			catch (Exception ex) {
-				opResult.StatusCode = OpStatusCode.Exception;
-				opResult.StatusText = ex.Message;
-			}
+
+            OpResult opResult = new OpResult();
+            try
+            {
+                if (setNowPlaying())
+                {
+                    opResult.StatusCode = OpStatusCode.Success;
+                }
+                else
+                {
+                    opResult.StatusCode = OpStatusCode.BadRequest;
+                }
+            }
+            catch (Exception ex)
+            {
+                opResult.StatusCode = OpStatusCode.Exception;
+                opResult.StatusText = ex.Message;
+            }
 			return opResult;
 		}
+
+        private void setMediaItem(IWMPMedia item, int j)
+        {
+            if (item != null)
+            {
+
+                if (Player != null)
+                {
+                    Player.currentPlaylist.appendItem(item);
+                }
+                else
+                {
+                    bool append;
+                    if (j == 0)
+                    {
+                        append = m_appendToQueue;
+                    }
+                    else
+                    {
+                        append = true;
+                    }
+                    AddInHost.Current.MediaCenterEnvironment.PlayMedia(MediaType.Audio, item.sourceURL, append);
+                }
+            }
+        }
+
+        public bool setNowPlaying()
+        {
+            if (Player != null)
+            {
+                if (Player.currentPlaylist == null)
+                {
+                    Player.currentPlaylist = Player.newPlaylist(m_playlist.name, "");
+                }
+                if (!m_appendToQueue)
+                {
+                    Player.currentPlaylist.clear();
+                } 
+            }
+
+            if (m_indexes != null)
+            {
+                for (int j = 0; j < m_indexes.Count; j++)
+                {                    
+                    setMediaItem(m_playlist.get_Item(j), j);                    
+                }
+            }
+            else
+            {
+                for (int j = 0; j < m_playlist.count; j++)
+                {
+                    setMediaItem(m_playlist.get_Item(j), j);
+                }
+            }
+            return true;
+        }
 
 		#endregion
 	}

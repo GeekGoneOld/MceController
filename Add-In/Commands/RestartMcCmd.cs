@@ -49,7 +49,7 @@ namespace VmcController.AddIn.Commands
             {
                 try
                 {
-                    if (p.MainModule.ModuleName.Contains("ehshell") == true)
+                    if (p.MainModule.ModuleName.Contains("ehshell"))
                         try
                         {
                             p.Kill();
@@ -62,12 +62,10 @@ namespace VmcController.AddIn.Commands
                             opResult.StatusText = ex.Message;
                         }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-
                 }
             }
-            //context.Undo();
             return opResult;
         }
 

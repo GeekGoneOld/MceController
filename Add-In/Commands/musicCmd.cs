@@ -2,6 +2,7 @@
  * This module is build on top of on J.Bradshaw's vmcController
  * Implements audio media library functions
  * 
+ * Copyright (c) 2013 Skip Mercier
  * Copyright (c) 2009 Anthony Jones
  * 
  * Portions copyright (c) 2007 Jonathan Bradshaw
@@ -17,6 +18,7 @@
  * Anthony Jones: 2010-03-04 Added recently played commands, reworked some of the template code, many bug fixes
  * Anthony Jones: 2009-10-14 Added list by album artist
  * Anthony Jones: 2009-09-04 Reworked getArtistCmd to this, added caching
+ * Skip Mercier: 2013 Lots of enhancements mainly concerning the use of data from the remoted WMP instance
  * 
  */
 
@@ -29,17 +31,24 @@ using System.Collections.Generic;
 using System.Web;
 
 using Microsoft.MediaCenter;
+using VmcController;
+using Microsoft.MediaCenter.UI;
+using WMPLib;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 
 namespace VmcController.AddIn.Commands
 {
+
     /// <summary>
     /// Summary description for getArtists commands.
     /// </summary>
-    public class musicCmd : ICommand
+    public class MusicCmd : MusicICommand
     {
-        private static WMPLib.WindowsMediaPlayer Player = null;
-        //private WMPLib.IWMPMedia media;
-        //private WMPLib.IWMPPlaylist mediaPlaylist;
+        private RemotedWindowsMediaPlayer remotePlayer = null;
+        private WindowsMediaPlayer Player = null;
+        private Logger logger;
 
         private string debug_last_action = "none";
 
@@ -55,6 +64,11 @@ namespace VmcController.AddIn.Commands
         public const int LIST_GENRES = 10;
         public const int LIST_RECENT = 11;
         public const int LIST_STATS = 12;
+        public const int LIST_PLAYLISTS = 13;
+        public const int LIST_NOWPLAYING = 14;
+        public const int LIST_CURRENT = 15;
+        public const int DELETE_PLAYLIST = 16;
+        public const int SHUFFLE = 17;
 
         private int which_command = -1;
 
@@ -64,15 +78,18 @@ namespace VmcController.AddIn.Commands
         private string artist_filter = "";
         private string album_filter = "";
         private string genre_filter = "";
+        private string song_filter = "";
         private string request_params = "";
+        private bool m_cache_only = false;
 
-        private static string CACHE_DIR = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\VMC_Controller";
-        private static string CACHE_MUSIC_CMD_DIR = CACHE_DIR + "\\music_cmd_cache";
+        //private static string CACHE_DIR = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\VMC_Controller";
+        private static string CACHE_MUSIC_CMD_DIR = AddInModule.DATA_DIR + "\\music_cmd_cache";
         private static string CACHE_VER_FILE = CACHE_MUSIC_CMD_DIR + "\\ver";
 
-        private const string DEFAULT_DETAIL_ARTIST_START = "artist=%artist%";
+        private const string DEFAULT_DETAIL_ARTIST_START = "album_artist=%artist%";
         private const string DEFAULT_DETAIL_ALBUM_START = "     album=%album% (%albumYear%; %albumGenre%)";
         private const string DEFAULT_DETAIL_SONG = "          %if-songTrackNumber%track=%songTrackNumber%. %endif%song=%song% (%songLength%)";
+        private const string DEFAULT_DETAIL_TRACK_ARTIST = "                   song_artist=%song_artist%";
         private const string DEFAULT_DETAIL_ALBUM_END = "          total album tracks=%albumTrackCount%";
         private const string DEFAULT_DETAIL_ARTIST_END = "     total artist tracks=%artistTrackCount%";
         private const string DEFAULT_DETAIL_FOOTER = "total artists found=%artistCount%\r\ntotal albums found=%albumCount%\r\ntotal tracks found=%trackCount%";
@@ -82,16 +99,61 @@ namespace VmcController.AddIn.Commands
 
         private static bool init_run = false;
 
-        public musicCmd(int i)
+
+        public MusicCmd(int i)
         {
             which_command = i;
+            m_cache_only = false;
+            init();
+        }
 
+        public MusicCmd(int i, bool cache_only)
+        {
+            which_command = i;
+            m_cache_only = cache_only;
+            logger = new Logger("MusicCmd", false);
+            init();
+        }
+
+        public MusicCmd(RemotedWindowsMediaPlayer rPlayer, bool enqueue)
+        {
+            if (enqueue)
+            {
+                which_command = QUEUE;
+            }
+            else
+            {
+                which_command = PLAY;
+            }
+            remotePlayer = rPlayer;
+            init();
+        }
+
+        private void init()
+        {
             if (!init_run)
             {
                 init_run = true;
                 loadTemplate();
-                if (Player == null) Player = new WMPLib.WindowsMediaPlayer();
             }
+            Player = new WindowsMediaPlayer();
+        }
+
+        /// <summary>
+        /// Checks to see if params contain an exact-hour param for setting cache time
+        /// returns -1 if param not found
+        /// </summary>
+        public static int check_cache_command(string param)
+        {
+            if (param != null && param.Contains("exact-hour:"))
+            {
+                string album = param.Substring(param.IndexOf("exact-album:") + "exact-album:".Length);
+                string hourString = trim_parameter(album);
+                int hour = Convert.ToInt32(hourString);
+                if (hour >= 0 && hour <= 12) return hour;
+                else return -1;
+            }
+            return -1;
         }
 
         #region ICommand Members
@@ -102,35 +164,41 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public string ShowSyntax()
         {
-            string s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [indexes:id1,id2] [template:template_name]- list / play from audio collection";
+            string s = "[-help] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [indexes:id1,id2] [template:template_name]- list / play from audio collection";
             switch (which_command)
             {
                 case LIST_ARTISTS:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [template:template_name] - lists matching artists";
+                    s = "[-help] [create-playlist:playlist_name] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [template:template_name] - lists matching artists";
                     break;
                 case LIST_ALBUM_ARTISTS:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [template:template_name] - lists matching album artists";
+                    s = "[-help] [create-playlist:playlist_name] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [template:template_name] - lists matching album artists";
                     break;
                 case LIST_ALBUMS:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [template:template_name] - list matching albums";
+                    s = "[-help] [create-playlist:playlist_name] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [template:template_name] - list matching albums";
                     break;
                 case LIST_SONGS:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [template:template_name] - list matching songs";
+                    s = "[-help] [create-playlist:playlist_name] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [template:template_name] - list matching songs";
                     break;
                 case LIST_GENRES:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [template:template_name] - list matching genres";
+                    s = "[-help] [create-playlist:playlist_name] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [template:template_name] - list matching genres";
+                    break;
+                case LIST_PLAYLISTS:
+                    s = "- list all playlists";
                     break;
                 case LIST_DETAILS:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [indexes:id1,id2] [template:template_name] - lists info on matching songs / albums / artists";
+                    s = "[-help] [create-playlist:playlist_name] [exact-playlist:playlist_filter] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [indexes:id1,id2] [template:template_name] - lists info on matching songs / albums / artists";
                     break;
                 case PLAY:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [indexes:id1,id2] - plays matching songs";
+                    s = "[-help] [exact-playlist:playlist_filter] [exact-song:song_filter] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [indexes:id1,id2] - plays matching songs";
                     break;
                 case QUEUE:
-                    s = "[-help] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [indexes:id1,id2] - adds matching songs to the now playing list";
+                    s = "[-help] [exact-playlist:playlist_filter] [exact-song:song_filter] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [indexes:id1,id2] - adds matching songs to the now playing list";
+                    break;
+                case SHUFFLE:
+                    s = "Changes play state to shuffle";
                     break;
                 case SERV_COVER:
-                    s = "[size-x:<width>] [size-y:<height>] [[exact_]artist:[*]artist_filter] [[exact_]album:[*]album_filter] [[exact_]genre:[*]genre_filter] [indexes:id1,id2] - serves the album cover of the first match";
+                    s = "[size-x:<width>] [size-y:<height>] [[exact-]artist:[*]artist_filter] [[exact-]album:[*]album_filter] [[exact-]genre:[*]genre_filter] [indexes:id1,id2] - serves the album cover of the first match";
                     break;
                 case CLEAR_CACHE:
                     s = " - forces the cache to be cleared (normally only happens when the music library's length changes)";
@@ -140,6 +208,15 @@ namespace VmcController.AddIn.Commands
                     break;
                 case LIST_STATS:
                     s = "[template:template_name] - lists stats (Artist / Album / Track counts, cache age, available templates, etc)";
+                    break;
+                case LIST_NOWPLAYING:
+                    s = "- [index:id1] lists all songs in the current playlist or, if an index is supplied, playback will be set to that song in the list";
+                    break;
+                case LIST_CURRENT:
+                    s = "- returns a key value pair list of current media similarly to mediametadata command";
+                    break;
+                case DELETE_PLAYLIST:
+                    s = "[-help] [exact-playlist:playlist_filter] [indexes:id1,id2] deletes playlist specified by playlist_filter or, if indexes are supplied, only deletes items at indexes in the specified playlist";
                     break;
             }
             return s;
@@ -152,23 +229,35 @@ namespace VmcController.AddIn.Commands
             or.AppendFormat("music-list-songs [~filters~] [~custom-template~] - lists all matching songs");
             or.AppendFormat("music-list-albums [~filters~] [~custom-template~] - lists all matching albums");
             or.AppendFormat("music-list-genres [~filters~] [~custom-template~] - lists all matching genres");
+            or.AppendFormat("music-list-playlists - lists all playlists");
+            or.AppendFormat("music-list-playing [~index~] - lists songs in the current playlist or set playback to a specified song if index is supplied");
+            or.AppendFormat("music-list-current - returns a key value pair list of current media similarly to mediametadata command");
+            or.AppendFormat("music-delete-playlist [~filters~] [~index-list~] - deletes playlist specified by playlist_filter or, if indexes are supplied, only deletes items at indexes in the specified playlist");
             or.AppendFormat("music-play [~filters~] [~index-list~] - plays all matching songs");
             or.AppendFormat("music-queue [~filters~] [~index-list~] - queues all matching songs");
+            or.AppendFormat("music-shuffle - sets playback mode to shuffle");
             or.AppendFormat("music-cover [~filters~] [~index-list~] [size-x:width] [size-y:height] - serves the cover image (first match)");
             or.AppendFormat(" ");
             or.AppendFormat("Where:");
             or.AppendFormat("     [~filters~] is one or more of: [~artist-filter~] [~album-filter~] [~genre-filter~] ");
+            or.AppendFormat("     [~playlist-name~] is optional, can be an existing playlist to update, and must be combined with another filter below.");
             or.AppendFormat("     [~artist-filter~] is one of:");
             or.AppendFormat("          artist:<text> - matches track artists that start with <text> (\"artist:ab\" would match artists \"ABBA\" and \"ABC\")");
             or.AppendFormat("          artist:*<text> - matches track artists that have any words that start with <text> (\"artist:*ab\" would match \"ABBA\" and \"The Abstracts\")");
             or.AppendFormat("          exact-artist:<text> - matches the track artist that exactly matches <text> (\"exact-artist:ab\" would only match an artist names \"Ab\")");
             or.AppendFormat("     [~album-filter~] is one of:");
             or.AppendFormat("          album:<text> - matches albums that start with <text> (\"album:ab\" would match the album \"ABBA Gold\" and \"Abbey Road\")");
-            or.AppendFormat("          exact_album:<text> - matches the album exactly named <text> (\"exact_album:ab\" would only match an album named \"Ab\")");
+            or.AppendFormat("          exact-album:<text> - matches the album exactly named <text> (\"exact-album:ab\" would only match an album named \"Ab\")");
             or.AppendFormat("     [~genre-filter~] is one of:");
             or.AppendFormat("          genre:<text> - matches genre that start with <text> (\"genre:ja\" would match the genre \"Jazz\")");
             or.AppendFormat("          genre:*<text> - matches genres that contain <text> (\"genre:*rock\" would match \"Rock\" and \"Alternative Rock\")");
-            or.AppendFormat("          exact_genre:<text> - matches the genere exactly named <text> (\"exact_genre:ja\" would only match an genre named \"Ja\")");
+            or.AppendFormat("          exact-genre:<text> - matches the genere exactly named <text> (\"exact-genre:ja\" would only match an genre named \"Ja\")");
+            or.AppendFormat("     [~playlist-filter~] is only:");
+            or.AppendFormat("          exact-playlist:<text> - matches playlist exactly named <text>");
+            or.AppendFormat("     [~song-filter~] is only:");
+            or.AppendFormat("          exact-song:<text> - matches song exactly named <text>");
+            or.AppendFormat("     [~index~] is of the form:");
+            or.AppendFormat("          index:idx1 - specifies only one song in the current playlist by index");
             or.AppendFormat("     [~index-list~] is of the form:");
             or.AppendFormat("          indexes:idx1,idx2... - specifies one or more specific songs returned by the filter");
             or.AppendFormat("               Where idx1,idx2... is a comma separated list with no spaces (e.g. 'indexes:22,23,27')");
@@ -178,6 +267,9 @@ namespace VmcController.AddIn.Commands
             or.AppendFormat("     [size-y:~height~] - Resizes the served image, where ~height~ is the max height of the served image");
             or.AppendFormat(" ");
             or.AppendFormat("Parameter Notes:");
+            or.AppendFormat("     - Filter names containing two or more words must be enclosed in quotes.");
+            or.AppendFormat("     - [~playlist-name~] must be combined with another filter and can be an existing playlist to update.");
+            or.AppendFormat("     - [~song-filter~] can only be used with play and queue commands.");
             or.AppendFormat("     - Index numbers are just an index into the returned results and may change - they are not static!");
             or.AppendFormat("     - Both size-x and size-y must be > 0 or the original image will be returned without resizing.");
             or.AppendFormat(" ");
@@ -193,9 +285,8 @@ namespace VmcController.AddIn.Commands
             or.AppendFormat("     music-list-albums artist:b album:*b - would return all albums that have a word starting with \"B\" by an artist whose name starts with \"B\"");
             or.AppendFormat("     music-list-albums genre:jazz - would return all the jazz albums");
             or.AppendFormat("     music-list-songs exact-artist:\"tom petty\" - would return all songs by \"Tom Petty\", but not songs by \"Tom Petty and the Heart Breakers \"");
-            or.AppendFormat("     music-play exact_album:\"abbey road\" indexes:1,3 - would play the second and third songs (indexes are zero based) returned by the search for an album named \"Abbey Road\"");
+            or.AppendFormat("     music-play exact-album:\"abbey road\" indexes:1,3 - would play the second and third songs (indexes are zero based) returned by the search for an album named \"Abbey Road\"");
             or.AppendFormat("     music-queue exact-artist:\"the who\" - would add all songs by \"The Who\" to the now playing list");
-
             return or;
         }
 
@@ -221,6 +312,7 @@ namespace VmcController.AddIn.Commands
             public string nextAlbum;
 
             public string song;
+            public string song_artist;
             public string songTrackNumber;
             public string songLength;
             public string songLocation;
@@ -248,6 +340,7 @@ namespace VmcController.AddIn.Commands
                 nextAlbum = "";
 
                 song = "";
+                song_artist = "";
                 songTrackNumber = "";
                 songLength = "";
                 songLocation = "";
@@ -321,7 +414,7 @@ namespace VmcController.AddIn.Commands
                 finally { }
             }
 
-            public void add_song_to_album(WMPLib.IWMPMedia media_item)
+            public void add_song_to_album(IWMPMedia media_item)
             {
                 if (albumYear == "" || albumYear.Length < 4) albumYear = media_item.getItemInfo("WM/OriginalReleaseYear");
                 if (albumYear == "" || albumYear.Length < 4) albumYear = media_item.getItemInfo("WM/Year");
@@ -337,12 +430,13 @@ namespace VmcController.AddIn.Commands
                 songLocation = media_item.sourceURL;
                 songTrackNumber = media_item.getItemInfo("WM/TrackNumber");
                 songLength = media_item.durationString;
+                song_artist = media_item.getItemInfo("Author");
 
                 string s = media_item.getItemInfo("WM/AlbumTitle");
                 if (album != s) nextAlbum = s;
 
                 s = media_item.getItemInfo("WM/AlbumArtist");
-                if (s == "") s = media_item.getItemInfo("Author");
+                if (s == "") s = "None";
                 if (artist != s) nextArtist = s;
 
                 return;
@@ -467,6 +561,7 @@ namespace VmcController.AddIn.Commands
 
             /* Song */
             s = do_conditional_replace(s, "song", the_state.song);
+            s = do_conditional_replace(s, "song_artist", the_state.song_artist);
             s = do_conditional_replace(s, "songPath", the_state.songLocation);
             s = do_conditional_replace(s, "songTrackNumber", the_state.songTrackNumber);
             s = do_conditional_replace(s, "songLength", the_state.songLength);
@@ -478,158 +573,7 @@ namespace VmcController.AddIn.Commands
             return s;
         }
 
-        private OpResult do_basic_list(OpResult or, WMPLib.IWMPStringCollection list, string list_type, string template, string default_template)
-        {
-            int result_count = list.count;
-            or.AppendFormat("{0}", basic_replacer(getTemplate(template + ".H", ""), "", "", result_count, -1)); // Header
-            string c_last = " ";
-            for (int j = 0; j < list.count; j++)
-            {
-                string list_item = list.Item(j);
-                if (list_item.Length > 0)
-                {
-                    string s_out = "";
-                    if (first_letter(list_item) != c_last)
-                    {
-                        if (j > 0)
-                        {
-                            s_out = getTemplate(template + ".Alpha-", "");
-                            s_out = basic_replacer(s_out, list_type, list.Item(j - 1), result_count, j);
-                            s_out = basic_replacer(s_out, "letter", c_last, result_count, j);
-                            if (s_out.Length > 0) or.AppendFormat("{0}", s_out); // Alpha-
-                        }
-                        c_last = first_letter(list_item);
-                        s_out = getTemplate(template + ".Alpha+", "");
-                        s_out = basic_replacer(s_out, list_type, list_item, result_count, j);
-                        s_out = basic_replacer(s_out, "letter", c_last, result_count, j);
-                        if (s_out.Length > 0) or.AppendFormat("{0}", s_out); // Alpha +
-                    }
-                    s_out = getTemplate(template + ".Entry", default_template);
-                    s_out = basic_replacer(s_out, list_type, list_item, result_count, j);
-                    s_out = basic_replacer(s_out, "letter", c_last, result_count, j);
-                    s_out = do_conditional_replace(s_out, "all_filters", request_params);
-                    s_out = do_conditional_replace(s_out, "genreFilter", genre_filter);
-                    s_out = do_conditional_replace(s_out, "artistFilter", artist_filter);
-                    s_out = do_conditional_replace(s_out, "albumFilter", album_filter);
-
-                    //opResult.AppendFormat("artist={0}", artists.Item(j));
-                    if (s_out.Length > 0) or.AppendFormat("{0}", s_out); // Entry
-                }
-            }
-            if (result_count > 0) // Close the final alpha grouping
-            {
-                string s_out = getTemplate(template + ".Alpha-", "");
-                s_out = basic_replacer(s_out, list_type, list.Item(result_count - 1), result_count, result_count);
-                s_out = basic_replacer(s_out, "letter", c_last, result_count, result_count);
-                if (s_out.Length > 0) or.AppendFormat("{0}", s_out); // Alpha-
-            }
-            return or;
-        }
-
-        private OpResult do_detailed_list(OpResult or, WMPLib.IWMPMedia media_item, int idx, string template)
-        {
-
-            string artist = "";
-            string album = "";
-            string letter = "";
-            bool added = false;
-
-            int index = idx;
-            if (index < 0) 
-                index = the_state.trackCount;
-
-            if (media_item != null)
-            {
-                artist = media_item.getItemInfo("WM/AlbumArtist");
-                if (artist == "") artist = media_item.getItemInfo("Author");
-                album = media_item.getItemInfo("WM/AlbumTitle");
-                letter = first_letter(artist);
-            }
-
-            // End of artist?
-            if (artist != the_state.artist)
-            {
-                if (the_state.album.Length > 0)
-                {
-                    var s_out = replacer(getTemplate(template + ".Album-", DEFAULT_DETAIL_ALBUM_END), index);
-                    if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                }
-                if (the_state.artist.Length > 0)
-                {
-                    var s_out = replacer(getTemplate(template + ".Artist-", DEFAULT_DETAIL_ARTIST_END), index);
-                    if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                }
-                // End of current aplha?
-                if (letter != the_state.letter && the_state.letter.Length == 1)
-                {
-                    var s_out = replacer(getTemplate(template + ".Alpha-", ""), index);
-                    if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                }
-
-                if (index >= 0)
-                {
-                    the_state.resetArtist(artist);
-                    the_state.resetAlbum(album);
-                }
-
-                if (media_item != null)
-                {
-                    the_state.add_song_to_album(media_item);
-                    added = true;
-                    // Start new aplha?
-                    if (letter != the_state.letter)
-                    {
-                        the_state.letter = letter;
-                        var s_out = replacer(getTemplate(template + ".Alpha+", ""), index);
-                        if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                    }
-                    // Start new artist
-                    if (the_state.artist.Length > 0)
-                    {
-                        var s_out = replacer(getTemplate(template + ".Artist+", DEFAULT_DETAIL_ARTIST_START), index);
-                        if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                    }
-                    // Start new album
-                    if (the_state.album.Length > 0)
-                    {
-                        var s_out = replacer(getTemplate(template + ".Album+", DEFAULT_DETAIL_ALBUM_START), index);
-                        if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                    }
-                }
-            }
-            // End of album?
-            else if (album != the_state.album)
-            {
-                if (the_state.album.Length > 0)
-                {
-                    var s_out = replacer(getTemplate(template + ".Album-", DEFAULT_DETAIL_ALBUM_END), index);
-                    if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                }
-                if (index >= 0) the_state.resetAlbum(album);
-                if (media_item != null)
-                {
-                    the_state.add_song_to_album(media_item);
-                    added = true;
-                    if (the_state.album.Length > 0)
-                    {
-                        var s_out = replacer(getTemplate(template + ".Album+", DEFAULT_DETAIL_ALBUM_START), index);
-                        if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-                    }
-                }
-            }
-
-            // Do track:
-            if (media_item != null)
-            {
-                if (!added) the_state.add_song_to_album(media_item);
-                var s_out = replacer(getTemplate(template + ".Entry", DEFAULT_DETAIL_SONG), index);
-                if (s_out.Length > 0) or.AppendFormat("{0}", s_out);
-            }
-
-            return or;
-        }
-
-        public string trim_parameter(string param)
+        public static string trim_parameter(string param)
         {
             if (param.Substring(0, 1) == "\"")
             {
@@ -729,7 +673,7 @@ namespace VmcController.AddIn.Commands
             try
             {
                 //Create dir if needed:
-                if (!Directory.Exists(CACHE_DIR)) Directory.CreateDirectory(CACHE_DIR);
+                if (!Directory.Exists(AddInModule.DATA_DIR)) Directory.CreateDirectory(AddInModule.DATA_DIR);
                 if (!Directory.Exists(CACHE_MUSIC_CMD_DIR)) Directory.CreateDirectory(CACHE_MUSIC_CMD_DIR);
 
                 FileInfo fi = new FileInfo(CACHE_VER_FILE);
@@ -737,12 +681,11 @@ namespace VmcController.AddIn.Commands
                 {
                     System.IO.File.WriteAllText(CACHE_VER_FILE, cur_ver);
                 }
-
                 System.IO.File.WriteAllText(cached_file, content);
             }
-            catch (Exception) { return; }
-
-            return;
+            catch (Exception)
+            {
+            }
         }
 
         public string get_cached(string fn, string cur_ver)
@@ -771,7 +714,7 @@ namespace VmcController.AddIn.Commands
             ArrayList mrp_content = new ArrayList();
             string[] line_array;
 
-            string mrp_file = CACHE_DIR + "\\mrp_list.dat";
+            string mrp_file = AddInModule.DATA_DIR + "\\mrp_list.dat";
 
             try
             {
@@ -802,7 +745,7 @@ namespace VmcController.AddIn.Commands
 
         public void add_to_mrp(string recent_text_type, string recent_text, string param, int track_count)
         {
-            string mrp_file = CACHE_DIR + "\\mrp_list.dat";
+            string mrp_file = AddInModule.DATA_DIR + "\\mrp_list.dat";
             string cmd = recent_text_type + "\t" + recent_text + "\t" + HttpUtility.UrlEncode(param);
 
             // read in existing list:
@@ -823,7 +766,7 @@ namespace VmcController.AddIn.Commands
             try
             {
                 //Create dir if needed:
-                if (!Directory.Exists(CACHE_DIR)) Directory.CreateDirectory(CACHE_DIR);
+                if (!Directory.Exists(AddInModule.DATA_DIR)) Directory.CreateDirectory(AddInModule.DATA_DIR);
 
                 System.IO.StreamWriter file = new System.IO.StreamWriter(mrp_file);
                 foreach (string s in mrp_content_final) file.WriteLine(s);
@@ -832,55 +775,6 @@ namespace VmcController.AddIn.Commands
             catch (Exception) { return; }
 
             return;
-        }
-
-        private OpResult list_stats(OpResult or, string template)
-        {
-            or.AppendFormat("{0}", basic_replacer(getTemplate(template + ".H", ""), "", "", 0, -1)); // Header
-
-            string s_out = getTemplate(template + ".Entry", DEFAULT_STATS);
-            s_out = basic_replacer(s_out, "track_count",
-                    String.Format("{0}", Player.mediaCollection.getByAttribute("MediaType", "Audio").count), 0, -1);
-
-            WMPLib.IWMPMediaCollection2 collection = (WMPLib.IWMPMediaCollection2)Player.mediaCollection;
-            WMPLib.IWMPQuery stats_query = collection.createQuery();
-
-            s_out = basic_replacer(s_out, "artist_count",
-                    String.Format("{0}", collection.getStringCollectionByQuery("Artist", stats_query, "Audio", "Artist", true).count), 0, -1);
-            s_out = basic_replacer(s_out, "album_count",
-                    String.Format("{0}", collection.getStringCollectionByQuery("WM/AlbumTitle", stats_query, "Audio", "WM/AlbumTitle", true).count), 0, -1);
-            s_out = basic_replacer(s_out, "genre_count",
-                    String.Format("{0}", collection.getStringCollectionByQuery("Genre", stats_query, "Audio", "Genre", true).count), 0, -1);
-
-            if (s_out.IndexOf("%cache_age%") >= 0)
-            {
-                string cache_age = "No cache";
-                try
-                {
-                    cache_age = System.IO.File.GetCreationTime(CACHE_VER_FILE).ToString();
-                }
-                catch (Exception) { ; }
-                s_out = basic_replacer(s_out, "cache_age", cache_age, 0, -1);
-            }
-
-            if (s_out.IndexOf("%available_templates%") >= 0)
-            {
-                string template_list = "";
-                foreach (KeyValuePair<string, string> t in m_templates)
-                {
-                    if (t.Key.EndsWith(".Entry"))
-                    {
-                        if (template_list.Length > 0) template_list += ", ";
-                        template_list += t.Key.Substring(0, t.Key.Length - ".Entry".Length);
-                    }
-                }
-                s_out = basic_replacer(s_out, "available_templates", template_list, 0, -1);
-            }
-            if (s_out.Length > 0) or.AppendFormat("{0}", s_out); // Entry
-
-            or.AppendFormat("{0}", basic_replacer(getTemplate(template + ".F", ""), "", "", 0, -1)); // Footer
-
-            return or;
         }
 
         private OpResult list_recent(OpResult or, string template)
@@ -927,137 +821,327 @@ namespace VmcController.AddIn.Commands
             return or;
         }
 
+        private OpResult add_to_playlist(OpResult or, bool contains_query, IWMPPlaylist queried, string playlist_name)
+        {
+            if (contains_query)
+            {
+                IWMPPlaylistCollection playlistCollection = (IWMPPlaylistCollection)Player.playlistCollection;
+                IWMPPlaylistArray current_playlists = playlistCollection.getByName(playlist_name);
+                if (current_playlists.count > 0)
+                {
+                    IWMPPlaylist previous_playlist = current_playlists.Item(0);
+                    for (int j = 0; j < queried.count; j++)
+                    {
+                        previous_playlist.appendItem(queried.get_Item(j));
+                    }
+                    or.ContentText = "Playlist " + playlist_name + " updated.";
+                }
+                else
+                {
+                    queried.name = playlist_name;
+                    playlistCollection.importPlaylist(queried);
+                    or.ContentText = "Playlist " + playlist_name + " added.";
+                }
+                or.StatusCode = OpStatusCode.Success;
+            }
+            else
+            {
+                or.StatusCode = OpStatusCode.BadRequest;
+                or.StatusText = "Playlists can only be created using a query for a specific items.";
+            }
+            return or;
+        }
+
+        private IWMPPlaylistArray getAllUserPlaylists(IWMPPlaylistCollection collection)
+        {
+            return getUserPlaylistsByName(null, collection);
+        }
+
+        private IWMPPlaylistArray getUserPlaylistsByName(string query, IWMPPlaylistCollection collection)
+        {
+            if (query != null)
+            {
+                return collection.getByName(query);
+            }
+            else
+            {
+                return collection.getAll();
+            }
+        }        
+
+        private string getSortAttributeFromQueryType(string query_type)
+        {
+            if (query_type.Equals("Album"))
+            {
+                return "WM/AlbumTitle";
+            }
+            else if (query_type.Equals("Album Artist"))
+            {
+                return "WM/AlbumArtist";
+            }
+            else if (query_type.Equals("Artist"))
+            {
+                return "Author";
+            }
+            else if (query_type.Equals("Genre"))
+            {
+                return "WM/Genre";
+            }
+            else if (query_type.Equals("Song"))
+            {
+                return "Title";
+            }
+            return "";
+        }
+
+        private IWMPPlaylist getPlaylistFromExactQuery(string query_text, string query_type, IWMPMediaCollection2 collection)
+        {
+            if (query_type.Equals("Album"))
+            {
+                return collection.getByAlbum(query_text);
+            }
+            else if (query_type.Equals("Album Artist"))
+            {
+                return collection.getByAttribute("WM/AlbumArtist", query_text);
+            }
+            else if (query_type.Equals("Artist"))
+            {
+                return collection.getByAuthor(query_text);
+            }
+            else if (query_type.Equals("Genre"))
+            {
+                return collection.getByGenre(query_text);
+            }
+            else if (query_type.Equals("Song"))
+            {
+                return collection.getByName(query_text);
+                //mediaPlaylist = collection.getByAttribute("Title", query_text);
+            }
+            return null;
+        }
+
+        public string findAlbumPath(string url)
+        {
+            string path = "";
+            try
+            {
+                path = Path.GetDirectoryName(url) + @"\Folder.jpg";
+                if (File.Exists(path)) return path;
+                else
+                {
+                    path = Path.GetDirectoryName(url) + @"\AlbumArtSmall.jpg";
+                    if (File.Exists(path)) return path;
+                }
+            }
+            finally { }
+            return path;
+        }
+
+        public OpResult Execute(string param)
+        {
+            return Execute(param, null, null);
+        }
+
         /// <summary>
         /// Executes the specified param.
         /// </summary>
         /// <param name="param">The param.</param>
         /// <param name="result">The result.</param>
         /// <returns></returns>
-        public OpResult Execute(string param)
+        public OpResult Execute(string param, NowPlayingList nowPlaying, MediaItem currentMedia)
         {
-            debug_last_action = "Execute: Start";
-
-            DateTime startTime = DateTime.Now;
-
             OpResult opResult = new OpResult();
-            opResult.StatusCode = OpStatusCode.Ok;
+            opResult.StatusCode = OpStatusCode.Json;
 
-            bool bFirst = false;
+            if (currentMedia != null)
+            {                
+                opResult.ContentText = JsonConvert.SerializeObject(currentMedia, Formatting.Indented);
+                return opResult;
+            }
+            else if (param.IndexOf("-help") >= 0)
+            {
+                opResult.StatusCode = OpStatusCode.Ok;
+                opResult = showHelp(opResult);
+                return opResult;
+            }
+
+            debug_last_action = "Execute: Start";
+            bool should_enqueue = true;
             int size_x = 0;
             int size_y = 0;
-
+            string create_playlist_name = null;
+            string playlist_query = null;
             string template = "";
             string cache_fn = make_cache_fn(String.Format("{0}-{1}.txt", which_command, param));
             string cache_body = "";
-            bool is_cached = false;
-
-
             try
             {
-                if (param.IndexOf("-help") >= 0)
+                IWMPMediaCollection2 collection = (IWMPMediaCollection2)Player.mediaCollection;
+                IWMPPlaylistCollection playlistCollection = (IWMPPlaylistCollection)Player.playlistCollection;
+
+                int ver = Player.mediaCollection.getByAttribute("MediaType", "Audio").count;
+                string cache_ver = String.Format("{0}", ver);
+                cache_body = get_cached(cache_fn, cache_ver);
+                if (cache_body.Length != 0 && create_playlist_name == null && playlist_query == null)
                 {
-                    opResult = showHelp(opResult);
+                    opResult.ContentText = setCachedFlag(cache_body);
                     return opResult;
                 }
-                //if (Player == null) Player = new WMPLib.WindowsMediaPlayer();
 
-                WMPLib.IWMPMediaCollection2 collection = (WMPLib.IWMPMediaCollection2)Player.mediaCollection;
-                int ver = Player.mediaCollection.getByAttribute("MediaType", "Audio").count;//.GetHashCode();
-                string cache_ver = String.Format("{0}", ver);
-                WMPLib.IWMPQuery query = collection.createQuery();
-                WMPLib.IWMPPlaylist mediaPlaylist = null;
-                WMPLib.IWMPMedia media_item;
+                IWMPQuery query = collection.createQuery();
+                IWMPPlaylistArray playlists = null;
+                IWMPPlaylist mediaPlaylist = null;
+                IWMPMedia media_item;
 
-                ArrayList a_idx = new ArrayList();
+                ArrayList query_indexes = new ArrayList();
 
-                bool b_query = false;
+                Library metadata = new Library();
 
-                string recent_text = "";
-                string recent_text_type = "";
+                bool has_query = false;
+                bool has_exact_query = false;
+                
+                string query_text = "";
+                string query_type = "";
 
                 debug_last_action = "Execution: Parsing params";
 
                 request_params = HttpUtility.UrlEncode(param);
 
+                if (param.Contains("create-playlist:"))
+                {
+                    create_playlist_name = param.Substring(param.IndexOf("create-playlist:") + "create-playlist:".Length);
+                    create_playlist_name = trim_parameter(create_playlist_name);
+                }
+
                 if (param.Contains("exact-genre:"))
                 {
                     string genre = param.Substring(param.IndexOf("exact-genre:") + "exact-genre:".Length);
                     genre = trim_parameter(genre);
-                    query.addCondition("Genre", "Equals", genre);
+                    query.addCondition("WM/Genre", "Equals", genre);
                     genre_filter = genre;
-                    recent_text = genre;
-                    recent_text_type = "Genre";
-                    b_query = true;
+                    query_text = genre;
+                    query_type = "Genre";
+                    has_query = true;
+                    has_exact_query = true;
                 }
                 else if (param.Contains("genre:*"))
                 {
                     string genre = param.Substring(param.IndexOf("genre:*") + "genre:*".Length);
                     genre = trim_parameter(genre);
-                    query.addCondition("Genre", "BeginsWith", genre);
+                    query.addCondition("WM/Genre", "BeginsWith", genre);
                     query.beginNextGroup();
-                    query.addCondition("Genre", "Contains", " " + genre);
+                    query.addCondition("WM/Genre", "Contains", " " + genre);
                     genre_filter = genre;
-                    recent_text = genre;
-                    recent_text_type = "Genre";
-                    b_query = true;
+                    query_text = genre;
+                    query_type = "Genre";
+                    has_query = true;
                 }
                 else if (param.Contains("genre:"))
                 {
                     string genre = param.Substring(param.IndexOf("genre:") + "genre:".Length);
                     genre = trim_parameter(genre);
-                    query.addCondition("Genre", "BeginsWith", genre);
+                    query.addCondition("WM/Genre", "BeginsWith", genre);
                     genre_filter = genre;
-                    recent_text = genre;
-                    recent_text_type = "Genre";
-                    b_query = true;
+                    query_text = genre;
+                    query_type = "Genre";
+                    has_query = true;
                 }
 
                 if (param.Contains("exact-artist:"))
                 {
                     string artist = param.Substring(param.IndexOf("exact-artist:") + "exact-artist:".Length);
                     artist = trim_parameter(artist);
-                    query.addCondition("Artist", "Equals", artist);
+                    query.addCondition("Author", "Equals", artist);
                     artist_filter = artist;
-                    if (recent_text.Length > 0)
+                    if (query_text.Length > 0)
                     {
-                        recent_text += ": ";
-                        recent_text_type += "/";
+                        query_text += ": ";
+                        query_type += "/";
                     }
-                    recent_text += artist;
-                    recent_text_type += "Artist";
-                    b_query = true;
+                    query_text += artist;
+                    query_type += "Artist";
+                    has_query = true;
+                    has_exact_query = true;
+                }
+                else if (param.Contains("exact-album-artist:"))
+                {
+                    string album_artist = param.Substring(param.IndexOf("exact-album-artist:") + "exact-album-artist:".Length);
+                    album_artist = trim_parameter(album_artist);
+                    query.addCondition("WM/AlbumArtist", "Equals", album_artist);
+                    artist_filter = album_artist;
+                    if (query_text.Length > 0)
+                    {
+                        query_text += ": ";
+                        query_type += "/";
+                    }
+                    query_text += album_artist;
+                    query_type += "Album Artist";
+                    has_query = true;
+                    has_exact_query = true;
+                }
+                else if (param.Contains("album-artist:*"))
+                {
+                    string album_artist = param.Substring(param.IndexOf("album-artist:*") + "album-artist:*".Length);
+                    album_artist = trim_parameter(album_artist);
+                    query.addCondition("WM/AlbumArtist", "BeginsWith", album_artist);
+                    query.beginNextGroup();
+                    query.addCondition("WM/AlbumArtist", "Contains", " " + album_artist);
+                    artist_filter = album_artist;
+                    if (query_text.Length > 0)
+                    {
+                        query_text += ": ";
+                        query_type += "/";
+                    }
+                    query_text += album_artist;
+                    query_type += "Album Artist";
+                    has_query = true;
+                }
+                else if (param.Contains("album-artist:"))
+                {
+                    string album_artist = param.Substring(param.IndexOf("album-artist:") + "album-artist:".Length);
+                    album_artist = trim_parameter(album_artist);
+                    query.addCondition("WM/AlbumArtist", "BeginsWith", album_artist);
+                    artist_filter = album_artist;
+                    if (query_text.Length > 0)
+                    {
+                        query_text += ": ";
+                        query_type += "/";
+                    }
+                    query_text += album_artist;
+                    query_type += "Album Artist";
+                    has_query = true;
                 }
                 else if (param.Contains("artist:*"))
                 {
                     string artist = param.Substring(param.IndexOf("artist:*") + "artist:*".Length);
                     artist = trim_parameter(artist);
-                    query.addCondition("Artist", "BeginsWith", artist);
+                    query.addCondition("Author", "BeginsWith", artist);
                     query.beginNextGroup();
-                    query.addCondition("Artist", "Contains", " " + artist);
+                    query.addCondition("Author", "Contains", " " + artist);
                     artist_filter = artist;
-                    if (recent_text.Length > 0)
+                    if (query_text.Length > 0)
                     {
-                        recent_text += ": ";
-                        recent_text_type += "/";
+                        query_text += ": ";
+                        query_type += "/";
                     }
-                    recent_text += artist;
-                    recent_text_type += "Artist";
-                    b_query = true;
+                    query_text += artist;
+                    query_type += "Artist";
+                    has_query = true;
                 }
                 else if (param.Contains("artist:"))
                 {
                     string artist = param.Substring(param.IndexOf("artist:") + "artist:".Length);
                     artist = trim_parameter(artist);
-                    query.addCondition("Artist", "BeginsWith", artist);
+                    query.addCondition("Author", "BeginsWith", artist);
                     artist_filter = artist;
-                    if (recent_text.Length > 0)
+                    if (query_text.Length > 0)
                     {
-                        recent_text += ": ";
-                        recent_text_type += "/";
+                        query_text += ": ";
+                        query_type += "/";
                     }
-                    recent_text += artist;
-                    recent_text_type += "Artist";
-                    b_query = true;
+                    query_text += artist;
+                    query_type += "Artist";
+                    has_query = true;
                 }
 
                 if (param.Contains("exact-album:"))
@@ -1066,37 +1150,52 @@ namespace VmcController.AddIn.Commands
                     album = trim_parameter(album);
                     query.addCondition("WM/AlbumTitle", "Equals", album);
                     album_filter = album;
-                    if (recent_text.Length > 0)
+                    if (query_text.Length > 0)
                     {
-                        recent_text += ": ";
-                        recent_text_type += "/";
+                        query_text += ": ";
+                        query_type += "/";
                     }
-                    recent_text += album;
-                    recent_text_type += "Album";
-                    b_query = true;
+                    query_text += album;
+                    query_type += "Album";
+                    has_query = true;
+                    has_exact_query = true;
                 }
-                //else if (param.Contains("album:*"))
-                //{
-                //    string artist = param.Substring(param.IndexOf("album:*") + "album:*".Length);
-                //    if (album.IndexOf(" ") >= 0) album = album.Substring(0, album.IndexOf(" "));
-                //    query.addCondition("WM/AlbumTitle", "BeginsWith", album);
-                //    query.beginNextGroup();
-                //    query.addCondition("WM/AlbumTitle", "Contains", " " + album);
-                //}
                 else if (param.Contains("album:"))
                 {
                     string album = param.Substring(param.IndexOf("album:") + "album:".Length);
                     album = trim_parameter(album);
                     query.addCondition("WM/AlbumTitle", "BeginsWith", album);
                     album_filter = album;
-                    if (recent_text.Length > 0)
+                    if (query_text.Length > 0)
                     {
-                        recent_text += ": ";
-                        recent_text_type += "/";
+                        query_text += ": ";
+                        query_type += "/";
                     }
-                    recent_text += album;
-                    recent_text_type += "Album";
-                    b_query = true;
+                    query_text += album;
+                    query_type += "Album";
+                    has_query = true;
+                }
+
+                //This is not for a query but rather for playing/enqueing exact songs
+                if (param.Contains("exact-song:"))
+                {
+                    string song = param.Substring(param.IndexOf("exact-song:") + "exact-song:".Length);
+                    song = trim_parameter(song);
+                    song_filter = song;
+                    if (query_text.Length > 0)
+                    {
+                        query_text += ": ";
+                        query_type += "/";
+                    }
+                    query_text += song;
+                    query_type += "Song";
+                    has_exact_query = true;
+                }
+
+                if (param.Contains("exact-playlist:"))
+                {
+                    playlist_query = param.Substring(param.IndexOf("exact-playlist:") + "exact-playlist:".Length);
+                    playlist_query = trim_parameter(playlist_query);
                 }
 
                 // Indexes specified?
@@ -1107,18 +1206,18 @@ namespace VmcController.AddIn.Commands
                     string[] s_idx = indexes.Split(',');
                     foreach (string s in s_idx)
                     {
-                        if (s.Length > 0) a_idx.Add(Int16.Parse(s));
+                        if (s.Length > 0) query_indexes.Add(Int16.Parse(s));
                     }
-                    if (recent_text.Length > 0)
+                    if (query_text.Length > 0)
                     {
-                        recent_text += ": ";
-                        recent_text_type += "/";
+                        query_text += ": ";
+                        query_type += "/";
                     }
-                    recent_text_type += "Tracks";
-                    b_query = true;
+                    query_type += "Tracks";
+                    has_query = true;
                 }
-                if (!b_query) recent_text_type = recent_text = "All";
 
+                if (!has_query) query_type = query_text = "All";
 
                 // Cover size specified?
                 if (param.Contains("size-x:"))
@@ -1140,83 +1239,215 @@ namespace VmcController.AddIn.Commands
                     if (template.IndexOf(" ") >= 0) template = template.Substring(0, template.IndexOf(" "));
                 }
 
-                if (which_command == PLAY) bFirst = true;
+                if (which_command == PLAY) should_enqueue = false;
 
                 switch (which_command)
                 {
                     case CLEAR_CACHE:
-                        clear_cache();
+                        opResult.StatusCode = OpStatusCode.Ok;
+                        clear_cache();                       
                         return opResult;
                     case LIST_GENRES:
-                        cache_body = get_cached(cache_fn, cache_ver);
-                        if (cache_body.Length == 0)
+                        if (create_playlist_name != null)
                         {
-                            WMPLib.IWMPStringCollection genres = collection.getStringCollectionByQuery("Genre", query, "Audio", "Genre", true);
-                            do_basic_list(opResult, genres, "genre", template, "genre=%genre%");
-                            result_count = genres.count;
+                            IWMPPlaylist genre_playlist = collection.getPlaylistByQuery(query, "Audio", "WM/Genre", true);
+                            add_to_playlist(opResult, has_query, genre_playlist, create_playlist_name);
+                            opResult.StatusCode = OpStatusCode.Ok;
                         }
                         else
                         {
-                            is_cached = true;
-                            opResult.ContentText = cache_body;
+                            IWMPStringCollection genres;
+                            if (has_query)
+                            {
+                                genres = collection.getStringCollectionByQuery("WM/Genre", query, "Audio", "WM/Genre", true);
+                            }
+                            else
+                            {
+                                genres = collection.getAttributeStringCollection("WM/Genre", "Audio");
+                            }
+                            if (genres != null && genres.count > 0)
+                            {
+                                for (int k = 0; k < genres.count; k++)
+                                {
+                                    string item = genres.Item(k);
+                                    if (item != null && !item.Equals(""))
+                                    {
+                                        metadata.addGenre(item);
+                                        result_count++;
+                                    }
+                                }
+                                metadata.trimToSize();
+                                opResult = serializeObject(opResult, metadata, cache_fn, cache_ver);
+                            }
+                            else
+                            {
+                                opResult.StatusCode = OpStatusCode.BadRequest;
+                                opResult.StatusText = "No genres found!";
+                            }
                         }
-                        break;
+                        return opResult;
                     case LIST_ARTISTS:
-                        cache_body = get_cached(cache_fn, cache_ver);
-                        if (cache_body.Length == 0)
+                        if (create_playlist_name != null)
                         {
-                            WMPLib.IWMPStringCollection artists = collection.getStringCollectionByQuery("Artist", query, "Audio", "Artist", true);
-                            do_basic_list(opResult, artists, "artist", template, "artist=%artist%");
-                            result_count = artists.count;
+                            IWMPPlaylist artists_playlist = collection.getPlaylistByQuery(query, "Audio", "Author", true);
+                            add_to_playlist(opResult, has_query, artists_playlist, create_playlist_name);
+                            opResult.StatusCode = OpStatusCode.Ok;
                         }
                         else
                         {
-                            is_cached = true;
-                            opResult.ContentText = cache_body;
+                            IWMPStringCollection artists;
+                            if (has_query)
+                            {
+                                artists = collection.getStringCollectionByQuery("Author", query, "Audio", "Author", true);
+                            }
+                            else
+                            {
+                                artists = collection.getAttributeStringCollection("Author", "Audio");
+                            }
+                            if (artists != null && artists.count > 0)
+                            {
+                                for (int k = 0; k < artists.count; k++)
+                                {
+                                    string item = artists.Item(k);
+                                    if (item != null && !item.Equals(""))
+                                    {
+                                        metadata.addArtist(item);
+                                        result_count++;
+                                    }
+                                }
+                                metadata.trimToSize();
+                                opResult = serializeObject(opResult, metadata, cache_fn, cache_ver);
+                            }
+                            else
+                            {
+                                opResult.StatusCode = OpStatusCode.BadRequest;
+                                opResult.StatusText = "No artists found!";
+                            }
                         }
-                        break;
+                        return opResult;
                     case LIST_ALBUM_ARTISTS:
-                        cache_body = get_cached(cache_fn, cache_ver);
-                        if (cache_body.Length == 0)
+                        if (create_playlist_name != null)
                         {
-                            WMPLib.IWMPStringCollection artists = collection.getStringCollectionByQuery("WM/AlbumArtist", query, "Audio", "WM/AlbumArtist", true);
-                            do_basic_list(opResult, artists, "artist", template, "album_artist=%artist%");
-                            result_count = artists.count;
+                            IWMPPlaylist album_artists_playlist = collection.getPlaylistByQuery(query, "Audio", "WM/AlbumArtist", true);
+                            add_to_playlist(opResult, has_query, album_artists_playlist, create_playlist_name);
+                            opResult.StatusCode = OpStatusCode.Ok;
                         }
                         else
                         {
-                            is_cached = true;
-                            opResult.ContentText = cache_body;
+                            IWMPStringCollection album_artists;
+                            if (has_query)
+                            {
+                                album_artists = collection.getStringCollectionByQuery("WM/AlbumArtist", query, "Audio", "WM/AlbumArtist", true);
+                            }
+                            else
+                            {
+                                album_artists = collection.getAttributeStringCollection("WM/AlbumArtist", "Audio");
+                            }
+                            if (album_artists != null && album_artists.count > 0)
+                            {
+                                for (int k = 0; k < album_artists.count; k++)
+                                {
+                                    string item = album_artists.Item(k);
+                                    if (item != null && !item.Equals(""))
+                                    {
+                                        metadata.addAlbumArtist(item);
+                                        result_count++;
+                                    }
+                                }
+                                metadata.trimToSize();
+                                opResult = serializeObject(opResult, metadata, cache_fn, cache_ver);
+                            }
+                            else
+                            {
+                                opResult.StatusCode = OpStatusCode.BadRequest;
+                                opResult.StatusText = "No album artists found!";
+                            }
                         }
-                        break;
+                        return opResult;
                     case LIST_ALBUMS:
-                        cache_body = get_cached(cache_fn, cache_ver);
-                        if (cache_body.Length == 0)
+                        if (create_playlist_name != null)
                         {
-                            WMPLib.IWMPStringCollection albums = collection.getStringCollectionByQuery("WM/AlbumTitle", query, "Audio", "WM/AlbumTitle", true);
-                            do_basic_list(opResult, albums, "album", template, "album=%album%");
-                            result_count = albums.count;
+                            IWMPPlaylist albums_playlist = collection.getPlaylistByQuery(query, "Audio", "WM/AlbumTitle", true);
+                            add_to_playlist(opResult, has_query, albums_playlist, create_playlist_name);
+                            opResult.StatusCode = OpStatusCode.Ok;
                         }
                         else
                         {
-                            is_cached = true;
-                            opResult.ContentText = cache_body;
+                            IWMPStringCollection albums;
+                            if (has_query)
+                            {
+                                albums = collection.getStringCollectionByQuery("WM/AlbumTitle", query, "Audio", "WM/AlbumTitle", true);
+                            }
+                            else
+                            {
+                                albums = collection.getAttributeStringCollection("WM/AlbumTitle", "Audio");
+                            }
+                            if (albums != null && albums.count > 0)
+                            {
+                                for (int k = 0; k < albums.count; k++)
+                                {
+                                    string item = albums.Item(k);
+                                    if (item != null && !item.Equals(""))
+                                    {
+                                        metadata.addAlbum(new Album(item, collection.getByAlbum(item)));
+                                    }
+                                }
+                                metadata.trimToSize();
+                                opResult = serializeObject(opResult, metadata, cache_fn, cache_ver);
+                            }
+                            else
+                            {
+                                opResult.StatusCode = OpStatusCode.BadRequest;
+                                opResult.StatusText = "No albums found!";
+                            }
                         }
-                        break;
+                        return opResult;
                     case LIST_SONGS:
-                        cache_body = get_cached(cache_fn, cache_ver);
-                        if (cache_body.Length == 0)
+                        IWMPStringCollection songs;
+                        if (has_query)
                         {
-                            WMPLib.IWMPStringCollection songs = collection.getStringCollectionByQuery("Title", query, "Audio", "Title", true);
-                            do_basic_list(opResult, songs, "song", template, "index=%index%, song=%song%");
-                            result_count = songs.count;
+                            songs = collection.getStringCollectionByQuery("Title", query, "Audio", "Title", true);
                         }
                         else
                         {
-                            is_cached = true;
-                            opResult.ContentText = cache_body;
+                            songs = collection.getAttributeStringCollection("Title", "Audio");
                         }
-                        break;
+                        if (songs != null && songs.count > 0)
+                        {
+                            for (int k = 0; k < songs.count; k++)
+                            {
+                                IWMPPlaylist playlist = collection.getByName(songs.Item(k));
+                                if (playlist != null && playlist.count > 0)
+                                {
+                                    if (create_playlist_name != null)
+                                    {
+                                        add_to_playlist(opResult, has_query, playlist, create_playlist_name);
+                                        opResult.StatusCode = OpStatusCode.Ok;
+                                    }
+                                    else
+                                    {
+                                        metadata.addSongs(playlist);
+                                    }
+                                }
+                            }
+                            if (create_playlist_name == null)
+                            {
+                                metadata.trimToSize();
+                                opResult = serializeObject(opResult, metadata, cache_fn, cache_ver);
+                            }
+                        }
+                        else
+                        {
+                            opResult.StatusCode = OpStatusCode.BadRequest;
+                            opResult.StatusText = "No songs found!";
+                        }
+                        return opResult;
+                    case LIST_PLAYLISTS:
+                        playlists = getAllUserPlaylists(playlistCollection);
+                        metadata.addPlaylists(playlistCollection, playlists);
+                        metadata.trimToSize();
+                        opResult.ContentText = JsonConvert.SerializeObject(metadata, Formatting.Indented);
+                        return opResult;
                     case LIST_RECENT:
                         if (param.Contains("count:"))
                         {
@@ -1226,125 +1457,257 @@ namespace VmcController.AddIn.Commands
                             list_recent(opResult, template, count);
                         }
                         else list_recent(opResult, template);
+                        opResult.StatusCode = OpStatusCode.Ok;
                         return opResult;
                     case LIST_STATS:
-                        cache_body = get_cached(cache_fn, cache_ver);
-                        if (cache_body.Length == 0)
+                        LibraryStats stats = new LibraryStats(collection, playlistCollection);                        
+                        opResult.ContentText = JsonConvert.SerializeObject(stats, Formatting.Indented);
+                        return opResult;
+                    case LIST_NOWPLAYING:
+                        if (nowPlaying != null)
                         {
-                            list_stats(opResult, template);
+                            opResult.ContentText = JsonConvert.SerializeObject(nowPlaying, Formatting.Indented);
                         }
                         else
                         {
-                            is_cached = true;
-                            opResult.ContentText = cache_body;
+                            opResult.StatusCode = OpStatusCode.BadRequest;
+                            opResult.StatusText = "Now playing is null!";
                         }
-                        break;
-                    case LIST_DETAILS:
-                    case PLAY:
-                    case QUEUE:
-                    case SERV_COVER:
-                        if (which_command == LIST_DETAILS)
+                        return opResult;
+                    case DELETE_PLAYLIST:
+                        if (playlist_query != null)
                         {
-                            cache_body = get_cached(cache_fn, cache_ver);
-                            if (cache_body.Length > 0)
+                            playlists = getUserPlaylistsByName(playlist_query, playlistCollection);
+                            if (playlists.count > 0)
                             {
-                                is_cached = true;
-                                opResult.ContentText = cache_body;
-                                break;
+                                IWMPPlaylist mod_playlist = playlists.Item(0);
+                                if (query_indexes.Count > 0)
+                                {
+                                    // Delete items indicated by indexes instead of deleting playlist
+                                    for (int j = 0; j < query_indexes.Count; j++)
+                                    {
+                                        mod_playlist.removeItem(mod_playlist.get_Item((Int16)query_indexes[j]));
+                                    }
+                                    opResult.ContentText = "Items removed from playlist " + mod_playlist + ".";
+                                }
+                                else
+                                {
+                                    ((IWMPPlaylistCollection)Player.playlistCollection).remove(mod_playlist);
+                                    opResult.ContentText = "Playlist " + mod_playlist + " deleted.";
+                                }
+                                opResult.StatusCode = OpStatusCode.Success;
+                            }
+                            else
+                            {
+                                opResult.StatusCode = OpStatusCode.BadRequest;
+                                opResult.StatusText = "Playlist does not exist!";
                             }
                         }
-                        if (which_command == SERV_COVER || which_command == LIST_DETAILS) the_state.init();
-
-                        if (b_query) mediaPlaylist = collection.getPlaylistByQuery(query, "Audio", "Artist", true);
-                        else mediaPlaylist = Player.mediaCollection.getByAttribute("MediaType", "Audio");
-
-                        if (a_idx.Count > 0) result_count = a_idx.Count;
-                        else result_count = mediaPlaylist.count;
-
-                        // Header
-                        opResult.AppendFormat("{0}", basic_replacer(getTemplate(template + ".H", ""), "", "", result_count, -1));
-
-                        if (a_idx.Count > 0)
+                        else
                         {
-                            result_count = 0;
-                            for (int j = 0; j < a_idx.Count; j++)
+                            opResult.StatusCode = OpStatusCode.BadRequest;
+                            opResult.StatusText = "Must specify the exact playlist!";
+                        }
+                        return opResult;
+                    case LIST_DETAILS:
+                        // Get  query as a playlist
+                        if (playlist_query != null)
+                        {
+                            //Return a specific playlist when music-list-details with exact-playlist is queried
+                            playlists = getUserPlaylistsByName(playlist_query, playlistCollection);
+                            if (playlists.count > 0)
                             {
-                                try { media_item = mediaPlaylist.get_Item((Int16)a_idx[j]); }
-                                catch (Exception) { media_item = null; }
-                                if (media_item != null)
+                                Playlist aPlaylist = new Playlist(playlist_query);
+                                mediaPlaylist = playlists.Item(0);
+                                //Or return a playlist query
+                                if (mediaPlaylist != null)
                                 {
-                                    result_count++;
-                                    if (which_command == LIST_DETAILS || which_command == SERV_COVER) // Display it
+                                    aPlaylist.addItems(mediaPlaylist);
+                                }
+                                metadata.playlists.Add(aPlaylist);
+                            }
+                        }
+                        else if (has_exact_query)
+                        {
+                            mediaPlaylist = getPlaylistFromExactQuery(query_text, query_type, collection);
+                        }
+                        else if (has_query)
+                        {
+                            string type = getSortAttributeFromQueryType(query_type);
+                            mediaPlaylist = collection.getPlaylistByQuery(query, "Audio", type, true);
+                        }
+
+                        if (mediaPlaylist != null)
+                        {
+                            //Create playlist from query if supplied with playlist name
+                            if (create_playlist_name != null)
+                            {
+                                add_to_playlist(opResult, has_query, mediaPlaylist, create_playlist_name);
+                                return opResult;
+                            }
+                            else if (query_indexes.Count > 0)
+                            {
+                                for (int j = 0; j < query_indexes.Count; j++)
+                                {
+                                    media_item = mediaPlaylist.get_Item((Int16)query_indexes[j]);
+                                    if (media_item != null)
                                     {
-                                        do_detailed_list(opResult, media_item, (Int16)a_idx[j], template);
-                                        if (which_command == SERV_COVER)
-                                        {
-                                            photoCmd pc;
-                                            pc = new photoCmd(photoCmd.SERV_PHOTO);
-                                            if (the_state.albumImage.Length == 0)
-                                                return pc.getPhoto(DEFAULT_IMAGE, "jpeg", size_x, size_y);
-                                            else return pc.getPhoto(the_state.albumImage, "jpeg", size_x, size_y);
+                                        metadata.addSong(media_item);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                if (query_type.Equals("Album"))
+                                {
+                                    Album album = new Album(query_text);
+                                    album.addTracks(mediaPlaylist);
+                                    metadata.addAlbum(album);
+                                }
+                                else
+                                {
+                                    metadata.addSongs(mediaPlaylist);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (logger != null)
+                            {
+                                logger.Write("Creating library metadata object");
+                            }
+                            //No query supplied so entire detailed library requested
+                            //Parse all albums and return, no value album will be added as songs                            
+                            IWMPStringCollection album_collection = collection.getAttributeStringCollection("WM/AlbumTitle", "Audio");
+                            if (album_collection.count > 0)
+                            {
+                                for (int j = 0; j < album_collection.count; j++)
+                                {
+                                    if (album_collection.Item(j) != null)
+                                    {
+                                        //The collection seems to represent the abcense of an album as an "" string value
+                                        IWMPPlaylist album_playlist = collection.getByAlbum(album_collection.Item(j));
+                                        if (album_playlist != null)
+                                        {                                            
+                                            Album album = new Album(album_collection.Item(j));
+                                            for (int k = 0; k < album_playlist.count; k++)
+                                            {
+                                                media_item = album_playlist.get_Item(k);
+                                                if (media_item != null)
+                                                {
+                                                    if (album_playlist.Equals("")) metadata.addSong(media_item);
+                                                    else album.addTrack(media_item);
+                                                }
+                                            }
+                                            if (!album_playlist.Equals(""))
+                                            {
+                                                metadata.addAlbum(album); 
+                                            }
+                                            result_count++;
                                         }
                                     }
-                                    else // Play / Queue it
-                                    {
-                                        recent_text += ((j == 0) ? "" : ", ") + (Int16)a_idx[j] + ". " + media_item.getItemInfo("Title");
-                                        PlayMediaCmd pmc;
-                                        pmc = new PlayMediaCmd(MediaType.Audio, !bFirst);
-                                        bFirst = false;
-                                        opResult = pmc.Execute(media_item.sourceURL);
-                                    }
                                 }
                             }
+                        }
+                        if (logger != null)
+                        {
+                            logger.Write("Starting serialization of metadata object.");
+                        }
+                        opResult = serializeObject(opResult, metadata, cache_fn, cache_ver);                        
+                        return opResult;
+                    case PLAY:
+                    case QUEUE:
+                        if (has_exact_query)
+                        {
+                            mediaPlaylist = getPlaylistFromExactQuery(query_text, query_type, collection);
+                        }
+                        else if (has_query)
+                        {
+                            string type = getSortAttributeFromQueryType(query_type);
+                            mediaPlaylist = collection.getPlaylistByQuery(query, "Audio", type, true);
                         }
                         else
                         {
-                            for (int j = 0; j < mediaPlaylist.count; j++)
+                            mediaPlaylist = collection.getByAttribute("MediaType", "Audio");
+                        }
+                        //Play or enqueue
+                        PlayMediaCmd pmc;
+                        if (query_indexes.Count > 0)
+                        {
+                            result_count = query_indexes.Count;
+                            for (int j = 0; j < query_indexes.Count; j++)
                             {
                                 media_item = mediaPlaylist.get_Item(j);
-                                if (which_command == LIST_DETAILS || which_command == SERV_COVER) // Display it
+                                if (media_item != null)
                                 {
-                                    do_detailed_list(opResult, media_item, j, template);
-                                    if (which_command == SERV_COVER)
+                                    query_text += ((j == 0) ? "" : ", ") + (Int16)query_indexes[j] + ". " + media_item.getItemInfo("Title");
+                                }
+                            }
+                            pmc = new PlayMediaCmd(remotePlayer, mediaPlaylist, query_indexes, should_enqueue);
+                        }
+                        else
+                        {
+                            result_count = mediaPlaylist.count;
+                            pmc = new PlayMediaCmd(remotePlayer, mediaPlaylist, should_enqueue);
+                        }
+                        opResult = pmc.Execute(null);
+
+                        // Type, Artist, Album, Track, param, count
+                        add_to_mrp(query_type, query_text, param, result_count); //Add to recent played list
+                        return opResult;
+                    case SERV_COVER:
+                        if (has_exact_query)
+                        {
+                            mediaPlaylist = getPlaylistFromExactQuery(query_text, query_type, collection);
+                        }
+                        else if (has_query)
+                        {
+                            string type = getSortAttributeFromQueryType(query_type);
+                            mediaPlaylist = collection.getPlaylistByQuery(query, "Audio", type, true);
+                        }
+                        else
+                        {
+                            mediaPlaylist = collection.getByAttribute("MediaType", "Audio");
+                        }
+
+                        try
+                        {
+                            if (query_indexes.Count > 0)
+                            {
+                                for (int j = 0; j < query_indexes.Count; j++)
+                                {
+                                    media_item = mediaPlaylist.get_Item((Int16)query_indexes[j]);
+                                    if (media_item != null)
                                     {
-                                        photoCmd pc;
-                                        pc = new photoCmd(photoCmd.SERV_PHOTO);
-                                        if (the_state.albumImage.Length == 0)
-                                            return pc.getPhoto(DEFAULT_IMAGE, "jpeg", size_x, size_y);
-                                        else return pc.getPhoto(the_state.albumImage, "jpeg", size_x, size_y);
+                                        string album_path = findAlbumPath(media_item.sourceURL);
+                                        photoCmd pc = new photoCmd(photoCmd.SERV_PHOTO);
+                                        if (album_path.Length == 0) return pc.getPhoto(DEFAULT_IMAGE, "jpeg", size_x, size_y);
+                                        else return pc.getPhoto(album_path, "jpeg", size_x, size_y);
                                     }
                                 }
-                                else // Play / Queue it
+                            }
+                            else
+                            {
+                                for (int j = 0; j < mediaPlaylist.count; j++)
                                 {
-                                    PlayMediaCmd pmc;
-                                    pmc = new PlayMediaCmd(MediaType.Audio, !bFirst);
-                                    bFirst = false;
-                                    opResult = pmc.Execute(media_item.sourceURL);
+                                    media_item = mediaPlaylist.get_Item(j);
+                                    if (media_item != null)
+                                    {
+                                        string album_path = findAlbumPath(media_item.sourceURL);
+                                        photoCmd pc = new photoCmd(photoCmd.SERV_PHOTO);
+                                        if (album_path.Length == 0) return pc.getPhoto(DEFAULT_IMAGE, "jpeg", size_x, size_y);
+                                        else return pc.getPhoto(album_path, "jpeg", size_x, size_y);
+                                    }
                                 }
                             }
                         }
-                        if (which_command == LIST_DETAILS) do_detailed_list(opResult, null, -1, template);
-
-                        if ((which_command == PLAY || which_command == QUEUE) && result_count > 0)
+                        catch (Exception ex) 
                         {
-                            // Type, Artist, Album, Track, param, count
-                            add_to_mrp(recent_text_type, recent_text, param, result_count); //Add to recent played list
-                        }
-                        break;
+                            opResult.StatusCode = OpStatusCode.Exception;
+                            opResult.StatusText = ex.Message;
+                        }                  
+                        return opResult;
                 }
-
-                // Footer
-                if (!is_cached)
-                {
-                    if (which_command != LIST_DETAILS) opResult.AppendFormat("{0}", basic_replacer(getTemplate(template + ".F", "result_count=%resultCount%"), "", "", result_count, -1));
-                    else opResult.AppendFormat("{0}", replacer(getTemplate(template + ".F", "result_count=%index%"), result_count));
-                    //opResult.AppendFormat("result_count={0}", result_count);
-                    save_to_cache(cache_fn, opResult.ToString(), cache_ver);
-                }
-                string sub_footer = basic_replacer(getTemplate(template + ".C", "from_cache=%wasCached%\r\nellapsed_time=%ellapsedTime%"), "wasCached", is_cached.ToString(), -1, -1);
-                TimeSpan duration = DateTime.Now - startTime;
-                sub_footer = basic_replacer(sub_footer, "ellapsedTime", String.Format("{0}", duration.TotalSeconds), -1, -1);
-                opResult.AppendFormat("{0}", sub_footer);
             }
             catch (Exception ex)
             {
@@ -1358,6 +1721,292 @@ namespace VmcController.AddIn.Commands
             debug_last_action = "Execute: End";
 
             return opResult;
+        }
+
+        private OpResult serializeObject(OpResult opResult, object metadata, string fn, string cur_ver)
+        {
+            opResult.ContentText = JsonConvert.SerializeObject(metadata, Formatting.Indented);
+            if (logger != null)
+            {
+                logger.Write("Serialization finished.");
+            }
+            if (logger != null)
+            {
+                logger.Write("Writing to cache.");
+            }
+            save_to_cache(fn, opResult.ToString(), cur_ver);
+            if (logger != null)
+            {
+                logger.Write("Writing to cache finished.");
+                logger.Close();
+            }
+            if (m_cache_only)
+            {
+                opResult = new OpResult();
+                opResult.StatusCode = OpStatusCode.Ok;
+                opResult.StatusText = "Cache saved";
+            }
+            return opResult;
+        }
+
+        private string setCachedFlag(string cache_body)
+        {
+            JObject jObject = JObject.Parse(cache_body);
+            jObject["from_cache"] = true;
+            return jObject.ToString();
+        }
+
+        public class LibraryStats
+        {
+            public int albums = 0;
+            public int album_artists = 0;
+            public int artists = 0;
+            public int genres = 0;
+            public int songs = 0;
+            public int playlists = 0;
+
+            public LibraryStats(IWMPMediaCollection2 collection, IWMPPlaylistCollection playlistCollection)
+            {
+                albums = collection.getAttributeStringCollection("WM/AlbumTitle", "Audio").count;
+                album_artists = collection.getAttributeStringCollection("WM/AlbumArtist", "Audio").count;
+                artists = collection.getAttributeStringCollection("Author", "Audio").count;
+                genres = collection.getAttributeStringCollection("WM/Genre", "Audio").count;
+                songs = collection.getAttributeStringCollection("Title", "Audio").count;
+
+                IWMPPlaylistArray list = playlistCollection.getAll();
+                for (int j = 0; j < list.count; j++)
+                {
+                    bool containsAudio = false;
+                    IWMPPlaylist playlist = list.Item(j);
+                    string name = playlist.name;
+                    if (!name.Equals("All Music") && !name.Contains("TV") && !name.Contains("Video") && !name.Contains("Pictures"))
+                    {
+                        for (int k = 0; k < playlist.count; k++)
+                        {
+                            if (playlist.get_Item(k).getItemInfo("MediaType").Equals("audio") && !playlistCollection.isDeleted(playlist))
+                            {
+                                containsAudio = true;
+                            }
+                        }
+                    }
+                    if (containsAudio)
+                    {
+                        playlists++;
+                    }
+                }                
+            }
+        }
+
+        public class Library
+        {
+            public bool from_cache = false;
+
+            public ArrayList albums = new ArrayList();
+            public ArrayList songs = new ArrayList();
+            public ArrayList genres = new ArrayList();
+            public ArrayList artists = new ArrayList();
+            public ArrayList album_artists = new ArrayList();
+            public ArrayList playlists = new ArrayList();
+
+            public void addAlbum(Album album)
+            {
+                albums.Add(album);
+            }
+
+            public void addSong(IWMPMedia item)
+            {
+                songs.Add(new Song(item));
+            }
+
+            public void addSongs(IWMPPlaylist playlist)
+            {
+                for (int j = 0; j < playlist.count; j++)
+                {
+                    IWMPMedia item = playlist.get_Item(j);
+                    if (item != null)
+                    {
+                        songs.Add(new Song(item));
+                    }
+                }
+            }
+
+            public void addGenre(string genre)
+            {
+                genres.Add(genre);
+            }
+
+            public void addArtist(string artist)
+            {
+                artists.Add(artist);
+            }
+
+            public void addAlbumArtist(string album_artist)
+            {
+                if (!album_artists.Contains(album_artist))
+                {
+                    album_artists.Add(album_artist);
+                }
+            }
+
+            public void addPlaylists(IWMPPlaylistCollection playlistCollection, IWMPPlaylistArray list)
+            {
+                for (int j = 0; j < list.count; j++)
+                {
+                    bool containsAudio = false;
+                    IWMPPlaylist playlist = list.Item(j);
+                    string name = playlist.name;
+
+                    if (!name.Equals("All Music") && !name.Contains("TV") && !name.Contains("Video") && !name.Contains("Pictures"))
+                    {
+                        for (int k = 0; k < playlist.count; k++)
+                        {
+                            if (playlist.get_Item(k).getItemInfo("MediaType").Equals("audio") && !playlistCollection.isDeleted(playlist))
+                            {
+                                containsAudio = true;
+                            }
+                        }
+                    }
+
+                    if (containsAudio)
+                    {
+                        playlists.Add(new Playlist(name));
+                    }
+                }
+            }
+
+            public void trimToSize()
+            {
+                albums.TrimToSize();
+                songs.TrimToSize();
+                genres.TrimToSize();
+                artists.TrimToSize();
+                album_artists.TrimToSize();
+                playlists.TrimToSize();
+            }
+        }
+
+        public class Album
+        {
+            public string album = "";
+            public string album_artist = "";
+            public string year = "";
+            public ArrayList genre = new ArrayList();
+            public ArrayList tracks = new ArrayList();
+
+            public Album(string name, IWMPPlaylist playlist)
+            {
+                album = name;
+                if (playlist != null)
+                {
+                    int count = 0;
+                    if (playlist.count > 1) count = 2;
+                    else count = 1;
+                    for (int j = 0; j < count; j++)
+                    {
+                        IWMPMedia item = playlist.get_Item(j);
+                        if (item != null)
+                        {
+                            album_artist = item.getItemInfo("WM/AlbumArtist");
+                            year = item.getItemInfo("WM/OriginalReleaseYear");
+                            if (year.Equals("") || year.Length < 4) year = item.getItemInfo("WM/Year");
+                            if (!genre.Contains(item.getItemInfo("WM/Genre"))) genre.Add(item.getItemInfo("WM/Genre"));
+                        }
+                    }
+                }
+            }
+
+            public Album(string name)
+            {
+                album = name;
+            }
+
+            public void addTracks(IWMPPlaylist playlist)
+            {
+                for (int j = 0; j < playlist.count; j++)
+                {
+                    IWMPMedia item = playlist.get_Item(j);
+                    if (item != null)
+                    {
+                        addTrack(item);
+                    }
+                }
+            }
+
+            public void addTrack(IWMPMedia item)
+            {
+                Track track = new Track(item);
+                if (!genre.Contains(track.genre)) genre.Add(track.genre);
+                year = track.year;
+                album_artist = item.getItemInfo("WM/AlbumArtist");
+                tracks.Add(track);
+            }
+        }
+
+        public class Playlist
+        {
+            public string playlist = "";
+            public ArrayList items = new ArrayList();
+
+            public Playlist(string name)
+            {
+                playlist = name;
+            }
+
+            public void addItems(IWMPPlaylist playlist)
+            {
+                for (int j = 0; j < playlist.count; j++)
+                {
+                    IWMPMedia item = playlist.get_Item(j);
+                    if (item != null)
+                    {
+                        items.Add(new PlaylistItem(j, item));
+                    }
+                }
+            }
+        }
+
+        public class PlaylistItem : Song
+        {
+            public string number = "";
+
+            public PlaylistItem(int index, IWMPMedia item)
+                : base(item)
+            {
+                number = Convert.ToString(index + 1);
+            }
+        }
+
+        public class Track : Song
+        {
+            public string track_number = "";
+
+            public Track(IWMPMedia item) : base(item)
+            {
+                track_number = item.getItemInfo("WM/TrackNumber");
+            }
+        }
+
+        public class Song
+        {
+            public string song = "";
+            public string song_artist = "";
+            public string genre = "";
+            public string year = "";
+            public string duration = "";
+
+            public Song()
+            {
+            }
+
+            public Song(IWMPMedia item)
+            {
+                song = item.getItemInfo("Title");
+                song_artist = item.getItemInfo("Author");
+                duration = item.durationString;
+                year = item.getItemInfo("WM/OriginalReleaseYear");
+                if (year.Equals("") || year.Length < 4) year = item.getItemInfo("WM/Year");
+                genre = item.getItemInfo("WM/Genre");
+            }
         }
 
         #endregion

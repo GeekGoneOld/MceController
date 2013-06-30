@@ -64,7 +64,7 @@ namespace VmcController.AddIn.Commands
         {
             //bool isPlaying = false;
 
-            if (AddInHost.Current.MediaCenterEnvironment.MediaExperience == null)
+            if (AddInModule.getMediaExperience() == null)
             {
                 return false;
             }

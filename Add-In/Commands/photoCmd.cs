@@ -36,10 +36,10 @@ using System.Collections.Generic;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-//using System.Windows.Forms;
 using System.Drawing.Imaging;
 using System.Threading;
-//using System.Runtime.CompilerServices;
+using WMPLib;
+
 
 namespace VmcController.AddIn.Commands
 {
@@ -48,9 +48,9 @@ namespace VmcController.AddIn.Commands
     /// </summary>
     public class photoCmd : ICommand
     {
-        private static WMPLib.WindowsMediaPlayer Player = null;
-        private WMPLib.IWMPMedia media;
-        private WMPLib.IWMPPlaylist photo_media_play_list;
+        private static WindowsMediaPlayer Player = null;
+        private IWMPMedia media;
+        private IWMPPlaylist photo_media_play_list;
 
         private static Dictionary<string, List<int>> keywords;
         private static int cache_ver = -1;
@@ -89,17 +89,15 @@ namespace VmcController.AddIn.Commands
 
         private const string CACHE_ID = ";;CACHE_ID;;";
         private const string KEYWORD = ";;KW;;";
-        private const string DATE = ";;DT;;";
+        private const string DATE = ";;DT;;";        
 
-        private static string DATA_DIR = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\VMC_Controller";
-
-        private static string CACHE_DIR = DATA_DIR + "\\photo_cmd_cache";
+        private static string CACHE_DIR = AddInModule.DATA_DIR + "\\photo_cmd_cache";
         private static string CACHE_FILE = CACHE_DIR + "\\photoCmd.cache";
         private static string CACHE_RESIZE_DIR = CACHE_DIR + "\\Resized";
         private static string CACHE_QUERY_DIR = CACHE_DIR + "\\Queries";
         private static string CACHE_PAGE_DIR = CACHE_DIR + "\\Pages";
 
-        private static string SLIDE_SHOW_DIR = DATA_DIR + "\\Slideshows";
+        private static string SLIDE_SHOW_DIR = AddInModule.DATA_DIR + "\\Slideshows";
 
 
         private const string DEFAULT_RESULT = "idx=%idx%\r\n%if-title%  Title=%title%\r\n%endif%  Filename=%filename%\r\n%if-datetaken%  Date Taken=%datetaken%\r\n%endif%%if-camera%  Camera=%camera%\r\n%endif%%if-tags%  Tags=%tags%\r\n%endif%";
@@ -143,7 +141,7 @@ namespace VmcController.AddIn.Commands
             {
                 init_run = true;
                 loadTemplate();
-                if (Player == null) Player = new WMPLib.WindowsMediaPlayer();
+                if (Player == null) Player = new WindowsMediaPlayer();
                 photo_media_play_list = Player.mediaCollection.getByAttribute("MediaType", "Photo");
                 validate_cache();
             }
@@ -152,9 +150,9 @@ namespace VmcController.AddIn.Commands
         public bool create_dirs()
         {
             //Create dirs if needed:
-            if (!Directory.Exists(DATA_DIR))
+            if (!Directory.Exists(AddInModule.DATA_DIR))
             {
-                try { Directory.CreateDirectory(DATA_DIR); }
+                try { Directory.CreateDirectory(AddInModule.DATA_DIR); }
                 catch (Exception) { return false; }
             }
             if (!Directory.Exists(SLIDE_SHOW_DIR))
@@ -767,6 +765,7 @@ namespace VmcController.AddIn.Commands
         {
             return resize(fn, max_w, max_h, 0, 0);
         }
+
         public string resize(string fn, int max_w, int max_h, int max_s, int max_l)
         {
             string cached_file = fn;

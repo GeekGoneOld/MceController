@@ -19,6 +19,10 @@ using System.Collections.Generic;
 using System.Text;
 using VmcController.AddIn.Commands;
 using Microsoft.MediaCenter;
+using WMPLib;
+using System.Xml;
+using Newtonsoft.Json;
+
 
 namespace VmcController.AddIn
 {
@@ -28,12 +32,25 @@ namespace VmcController.AddIn
         OpResult Execute(string param);
     }
 
+    public interface WmpICommand : ICommand
+    {
+        OpResult Execute(RemotedWindowsMediaPlayer remotePlayer, string param);
+    }
+
+    public interface MusicICommand : ICommand
+    {
+        OpResult Execute(string param, NowPlayingList nowPlaying, MediaItem currentMedia);
+    }
+
     /// <summary>
     /// Manages the list of available remote commands
     /// </summary>
     public class RemoteCommands
     {
         private Dictionary<string, ICommand> m_commands = new Dictionary<string, ICommand>();
+        private static Object cacheLock = new Object();
+        private bool _isCacheBuilding = false;
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="RemoteCommands"/> class.
@@ -94,8 +111,7 @@ namespace VmcController.AddIn
             m_commands.Add("fullscreen", new FullScreenCmd());
             m_commands.Add("mediametadata", new MediaMetaDataCmd());
             m_commands.Add("playrate", new PlayRateCmd(true));
-            m_commands.Add("playrate-get", new PlayRateCmd(false));
-            m_commands.Add("playstate-get", new PlayRateCmd(false, true));
+            m_commands.Add("playstate-get", new PlayRateCmd(false));
             m_commands.Add("position", new PositionCmd(true));
             m_commands.Add("position-get", new PositionCmd(false));
 
@@ -109,19 +125,24 @@ namespace VmcController.AddIn
             m_commands.Add("volume", new Volume());
 
             m_commands.Add("=== Music Library Commands: ==========", null);
-            m_commands.Add("music-list-artists", new musicCmd(musicCmd.LIST_ARTISTS));
-            m_commands.Add("music-list-album-artists", new musicCmd(musicCmd.LIST_ALBUM_ARTISTS));
-            m_commands.Add("music-list-albums", new musicCmd(musicCmd.LIST_ALBUMS));
-            m_commands.Add("music-list-songs", new musicCmd(musicCmd.LIST_SONGS));
-            m_commands.Add("music-list-details", new musicCmd(musicCmd.LIST_DETAILS));
-            m_commands.Add("music-list-genres", new musicCmd(musicCmd.LIST_GENRES));
-            m_commands.Add("music-list-recent", new musicCmd(musicCmd.LIST_RECENT));
-            m_commands.Add("music-play", new musicCmd(musicCmd.PLAY));
-            m_commands.Add("music-queue", new musicCmd(musicCmd.QUEUE));
-            m_commands.Add("music-cover", new musicCmd(musicCmd.SERV_COVER));
-            m_commands.Add("music-clear-cache", new musicCmd(musicCmd.CLEAR_CACHE));
-            m_commands.Add("music-stats", new musicCmd(musicCmd.LIST_STATS));
-            //m_commands.Add("music-list-now-playing", new GetNowPlaying(false));
+            m_commands.Add("music-list-artists", new MusicCmd(MusicCmd.LIST_ARTISTS));
+            m_commands.Add("music-list-album-artists", new MusicCmd(MusicCmd.LIST_ALBUM_ARTISTS));
+            m_commands.Add("music-list-albums", new MusicCmd(MusicCmd.LIST_ALBUMS));
+            m_commands.Add("music-list-songs", new MusicCmd(MusicCmd.LIST_SONGS));
+            m_commands.Add("music-list-playlists", new MusicCmd(MusicCmd.LIST_PLAYLISTS));
+            m_commands.Add("music-list-details", new MusicCmd(MusicCmd.LIST_DETAILS));
+            m_commands.Add("music-list-genres", new MusicCmd(MusicCmd.LIST_GENRES));
+            m_commands.Add("music-list-recent", new MusicCmd(MusicCmd.LIST_RECENT));
+            m_commands.Add("music-list-playing", new MusicCmd(MusicCmd.LIST_NOWPLAYING));
+            m_commands.Add("music-list-current", new MusicCmd(MusicCmd.LIST_CURRENT));
+            m_commands.Add("music-delete-playlist", new MusicCmd(MusicCmd.DELETE_PLAYLIST));
+            m_commands.Add("music-play", new MusicCmd(MusicCmd.PLAY));
+            m_commands.Add("music-queue", new MusicCmd(MusicCmd.QUEUE));
+            m_commands.Add("music-shuffle", new MusicCmd(MusicCmd.SHUFFLE));
+            m_commands.Add("music-cover", new MusicCmd(MusicCmd.SERV_COVER));
+            m_commands.Add("music-clear-cache", new MusicCmd(MusicCmd.CLEAR_CACHE));
+            m_commands.Add("music-cache-status", new MusicCmd(MusicCmd.CLEAR_CACHE));
+            m_commands.Add("music-stats", new MusicCmd(MusicCmd.LIST_STATS));
 
             m_commands.Add("=== Photo Library Commands: ==========", null);
             m_commands.Add("photo-clear-cache", new photoCmd(photoCmd.CLEAR_CACHE));
@@ -132,22 +153,6 @@ namespace VmcController.AddIn
             m_commands.Add("photo-serv", new photoCmd(photoCmd.SERV_PHOTO));
             m_commands.Add("photo-stats", new photoCmd(photoCmd.SHOW_STATS));
 
-            m_commands.Add("=== Play Commands: ==========", null);
-            m_commands.Add("play-audio", new PlayMediaCmd(MediaType.Audio, false));
-            m_commands.Add("queueaudio", new PlayMediaCmd(MediaType.Audio, true));
-            m_commands.Add("play-video", new PlayMediaCmd(MediaType.Video, false));
-            m_commands.Add("play-dvd", new PlayMediaCmd(MediaType.Dvd, false));
-            m_commands.Add("play-radio", new PlayMediaCmd(MediaType.Radio, false));
-            m_commands.Add("play-tv", new PlayMediaCmd(MediaType.TV, false));
-            m_commands.Add("play-dvr", new PlayMediaCmd(MediaType.Dvr, false));
-
-            m_commands.Add("=== Epg / Schedule Commands: ==========", null);
-            //m_commands.Add("Epg disabled for this Win7 release", null);
-            m_commands.Add("schedule", new ScheduleCmd());
-            //m_commands.Add("epg-lineup", new EpgCmd(EpgResultsType.ChannelName));
-            //m_commands.Add("epg-onnow", new EpgCmd(EpgResultsType.OnNow));
-            //m_commands.Add("epg-details", new EpgCmd(EpgResultsType.Details));
-
             m_commands.Add("=== Window State Commands: ==========", null);
             m_commands.Add("window-close", new SysCommand(SysCommand.SC_CLOSE));
             m_commands.Add("window-minimize", new SysCommand(SysCommand.SC_MINIMIZE));
@@ -156,9 +161,6 @@ namespace VmcController.AddIn
 
             m_commands.Add("=== Reporting Commands: ==========", null);
             m_commands.Add("format", new customCmd());
-
-            m_commands.Add("=== Check Commands: ==========", null);
-            m_commands.Add("nit", new NITInfoCmd());
         }
 
         /// <summary>
@@ -169,6 +171,7 @@ namespace VmcController.AddIn
         {
             return CommandList(0);
         }
+
         public OpResult CommandList(int port)
         {
             OpResult opResult = new OpResult(OpStatusCode.Ok);
@@ -187,6 +190,7 @@ namespace VmcController.AddIn
             }
             return opResult;
         }
+
         public OpResult CommandListHTML(int port)
         {
             OpResult opResult = new OpResult(OpStatusCode.Ok);
@@ -244,7 +248,6 @@ namespace VmcController.AddIn
                         cmd.Key, cmd.Key, (cmd.Value == null) ? "" : cmd.Value.ShowSyntax().Replace("<", "&lt;").Replace(">", "&gt;"));
             }
             opResult.AppendFormat("{0}", page_end);
-
             return opResult;
         }
 
@@ -257,12 +260,49 @@ namespace VmcController.AddIn
         /// <returns></returns>
         public OpResult Execute(String command, string param)
         {
+            return Execute(command, param, null, null);
+        }
+
+        public OpResult Execute(RemotedWindowsMediaPlayer remotePlayer, String command, string param)
+        {
+            return ((WmpICommand)m_commands[command]).Execute(remotePlayer, param);
+        }
+
+        /// <summary>
+        /// Executes a command with the given parameter string and returns a string return
+        /// </summary>
+        /// <param name="command">command name string</param>
+        /// <param name="param">parameter string</param>
+        /// <param name="playlist">now playing playlist, may be null</param>
+        /// <param name="result">string</param>
+        /// <returns></returns>
+        public OpResult Execute(String command, string param, NowPlayingList playlist, MediaItem currentItem)
+        {
             command = command.ToLower();
             if (m_commands.ContainsKey(command))
             {
                 try
                 {
-                    return m_commands[command].Execute(param);
+                    if (command.Equals("music-cache-status"))
+                    {
+                        OpResult opResult = new OpResult();
+                        CacheStatus status = new CacheStatus(this.isCacheBuilding);
+                        opResult.StatusCode = OpStatusCode.Json;
+                        opResult.ContentText = JsonConvert.SerializeObject(status, Newtonsoft.Json.Formatting.Indented);
+                        return opResult;
+                    }
+                    else if (m_commands[command] is MusicICommand)
+                    {
+                        //Make sure cache is not being modified before executing any of the music-* commands
+                        lock (cacheLock)
+                        {
+                            return ((MusicICommand)m_commands[command]).Execute(param, playlist, currentItem);
+                        }                       
+                    }
+                    else
+                    {
+                        return m_commands[command].Execute(param);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -277,6 +317,53 @@ namespace VmcController.AddIn
             {
                 return new OpResult(OpStatusCode.BadRequest);
             }
+        }
+
+        public void ExecuteCacheBuild(XmlDocument doc, Logger logger)
+        {
+            lock (cacheLock)
+            {
+                this.isCacheBuilding = true;
+
+                DateTime now = DateTime.Now;
+                XmlNode lastCacheTimeNode = doc.DocumentElement.SelectSingleNode("lastCacheTime");
+                if (lastCacheTimeNode != null)
+                {
+                    lastCacheTimeNode.InnerText = Convert.ToString(now);
+                    //Save settings
+                    doc.PreserveWhitespace = true;
+                    doc.Save(AddInModule.DATA_DIR + "\\settings.xml");
+                }
+
+                logger.Write("Updating cache now in progress");
+
+                //Build caches for rebuilding the library in Emote
+                MusicCmd music = new MusicCmd(MusicCmd.LIST_DETAILS, true);
+                music.Execute("");
+                music = new MusicCmd(MusicCmd.LIST_ARTISTS, true);
+                music.Execute("");
+                music = new MusicCmd(MusicCmd.LIST_GENRES, true);
+                music.Execute("");
+                logger.Write("Cache update finished");
+
+                this.isCacheBuilding = false;
+            }
+        }
+
+        public bool isCacheBuilding
+        {
+            get { return _isCacheBuilding; }
+            set { _isCacheBuilding = value; }
+        }
+
+        public class CacheStatus
+        {
+            public bool is_building = false;
+
+            public CacheStatus(bool isBuilding)
+            {
+                is_building = isBuilding;
+            }            
         }
     }
 }

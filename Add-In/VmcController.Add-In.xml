@@ -1,6 +1,6 @@
 <application title="VmcController Background AddIn" id="{4E922CEE-E302-11DB-9ECB-3D7656D89593}">
 	<entrypoint id="{5BF9F966-E302-11DB-B831-747656D89593}"
-				addin="VmcController.AddIn.AddInModule, VmcController.Add-In,Culture=Neutral,Version=1.1.0.0, PublicKeyToken=2bf855c5d9a8f4a3"
+				addin="VmcController.AddIn.AddInModule, VmcController.Add-In,Culture=Neutral,Version=1.5.0.0, PublicKeyToken=2bf855c5d9a8f4a3"
 				context="40500">
 		<category category="Background"/>
 	</entrypoint>

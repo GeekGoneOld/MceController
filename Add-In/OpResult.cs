@@ -11,7 +11,8 @@ namespace VmcController.AddIn
         Success = 204,
         OkImage = 208,
         BadRequest = 400,
-        Exception = 500
+        Exception = 500,
+        Json = 800
     }
 
     public class OpResult

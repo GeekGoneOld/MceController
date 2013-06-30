@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2013 Skip Mercier
  * Copyright (c) 2007 Jonathan Bradshaw
  * 
  * This software is provided 'as-is', without any express or implied warranty. 
@@ -17,6 +18,7 @@
  * Modifications (c) 2009 Anthony Jones:
  * 06-07-10: Anthony Jones: Added threading to http requests to improve response
  * 2009: Added help context
+ * 2013: Cleaned up code, misc changes
  * 
  */
 using System;
@@ -31,9 +33,11 @@ using System.Xml;
 
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
-//using Microsoft.Ehome.Epg;
 
 using VmcController.AddIn.Commands;
+using VmcController;
+using System.Windows.Threading;
+
 
 namespace VmcController.AddIn
 {
@@ -43,6 +47,10 @@ namespace VmcController.AddIn
     public sealed class AddInModule : IAddInModule, IAddInEntryPoint
     {
         #region Member Variables
+
+        public static string APP_NAME = "Media Center Network Controller";
+        public static string DATA_DIR = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\" + APP_NAME;
+
         /// <summary>
         /// Used to signal that the plug-in should exit
         /// </summary>
@@ -51,23 +59,18 @@ namespace VmcController.AddIn
         /// <summary>
         /// The base TCP port number to use
         /// </summary>
-        private int m_basePortNumber;
-
-        /// <summary>
-        /// TCP Socket Server
-        /// </summary>
-        private TcpSocketServer m_socketServer = new TcpSocketServer();
-
-        /// <summary>
-        /// HTTP Socket Server
-        /// </summary>
-        private HttpSocketServer m_httpServer = new HttpSocketServer();
+        public static int m_basePortNumber;
 
         /// <summary>
         /// Available commands
         /// </summary>
         private RemoteCommands m_remoteCommands = new RemoteCommands();
 
+        /// <summary>
+        /// HTTP Socket Server
+        /// </summary>
+        private HttpSocketServer m_httpServer;
+       
         #endregion
 
         #region IAddInModule Members
@@ -79,13 +82,13 @@ namespace VmcController.AddIn
         public void Initialize(Dictionary<string, object> appInfo, Dictionary<string, object> entryPointInfo)
         {
             //  Set the base port number
-            int.TryParse(entryPointInfo["context"].ToString(), out m_basePortNumber);
+            int.TryParse(entryPointInfo["context"].ToString(), out m_basePortNumber);           
+
+            m_httpServer = new HttpSocketServer(m_remoteCommands);
+            m_httpServer.InitServer();
 
             //  Sets the wait handle to the launch method will not exit
             m_waitHandle.Reset();
-
-            //  Initializes the EPG guide data
-            //Guide.Initialize();
         }
 
         /// <summary>
@@ -96,8 +99,7 @@ namespace VmcController.AddIn
             //  Allow our launch method to exit
             m_waitHandle.Set();
 
-            //  Release the guide resources
-            //Guide.Uninitialize();
+            m_httpServer.CleanUpOnExit();                
         }
         #endregion
 
@@ -120,19 +122,10 @@ namespace VmcController.AddIn
             try
             {
                 //  Lower the priority of this thread
-                System.Threading.Thread.CurrentThread.Priority = ThreadPriority.Lowest;
-
-                //  Setup TCP socket listener
-                m_socketServer.StartListening(GetPortNumber(m_basePortNumber));
-                m_socketServer.NewMessage += new EventHandler<SocketEventArgs>(m_socketServer_NewMessage);
-                m_socketServer.Connected += new EventHandler<SocketEventArgs>(m_socketServer_Connected);
-                m_socketServer.Disconnected += new EventHandler<SocketEventArgs>(m_socketServer_Disconnected);
+                Thread.CurrentThread.Priority = ThreadPriority.Lowest;
 
                 //  Setup HTTP socket listener
                 m_httpServer.StartListening(GetPortNumber(m_basePortNumber) + 10);
-                m_httpServer.NewRequest += new EventHandler<HttpEventArgs>(m_httpServer_NewRequest);
-
-                //EventLog.WriteEntry("VmcController Client AddIn", "Listening on port " + m_socketServer.PortNumber + " (Version " + VersionInfo + ")", EventLogEntryType.Information);
 
                 if (System.IO.File.Exists(System.Environment.GetEnvironmentVariable("windir") + "\\ehome\\vmcController.xml"))
                 {
@@ -140,11 +133,7 @@ namespace VmcController.AddIn
                     doc.Load(System.Environment.GetEnvironmentVariable("windir") + "\\ehome\\vmcController.xml");
                     XmlNode startupCommand = doc.DocumentElement.SelectSingleNode("startupMacro");
 
-                    if (startupCommand == null)
-                    {
-                        //AddInHost.Current.MediaCenterEnvironment.Dialog("startup node not found", "", DialogButtons.Ok, 5, false);
-                    }
-                    else
+                    if (startupCommand != null)
                     {
                         MacroCmd macro = new MacroCmd();
                         OpResult result = macro.Execute(startupCommand.InnerText);
@@ -156,188 +145,23 @@ namespace VmcController.AddIn
 
                 //  Wait until exit request from host
                 m_waitHandle.WaitOne();
+
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                //EventLog.WriteEntry("VmcController Client AddIn", "Exception in Launch: " + ex.ToString(), EventLogEntryType.Error);
             }
-            finally
-            {
-                // Close RemotedWindowsMediaPlayer
-                //new GetNowPlaying(true);
-
-                //  Shutdown listener
-                if (m_socketServer.PortNumber > 0)
-                    m_socketServer.StopListening();
-            }
-        }
-
-        /// <summary>
-        /// Handles the Connected event of the m_socketServer control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="SocketServer.SocketEventArgs"/> instance containing the event data.</param>
-        void m_socketServer_Connected(object sender, SocketEventArgs e)
-        {
-            m_socketServer.SendMessage(String.Format(
-                "204 Connected (Clients: {0} Version: {1} Build Date: {2})\r\n",
-                m_socketServer.Count, VersionInfo,
-                RetrieveLinkerTimestamp().ToShortDateString()), e.TcpClient);
-        }
-
-        /// <summary>
-        /// Handles the Disconnected event of the m_socketServer control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="SocketServer.SocketEventArgs"/> instance containing the event data.</param>
-        void m_socketServer_Disconnected(object sender, SocketEventArgs e)
-        {
-            // Close RemotedWindowsMediaPlayer
-            //new GetNowPlaying(true);
-        }
-
-        /// <summary>
-        /// Handles the received commands of the m_socketServer control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="args">The <see cref="SocketServer.SocketEventArgs"/> instance containing the event data.</param>
-        void m_socketServer_NewMessage(object sender, SocketEventArgs e)
-        {
-            OpResult opResult = new OpResult(OpStatusCode.BadRequest);
-            try
-            {
-                if (e.Message.Length == 0)
-                    return;
-
-                if (e.Message.Equals("help", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    opResult = m_remoteCommands.CommandList(GetPortNumber(m_basePortNumber));
-                }
-                else if (e.Message.Equals("exit", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    m_socketServer.CloseClient(e.TcpClient);
-                    return;
-                }
-                else
-                {
-                    string[] command = e.Message.Split(new char[] { ' ' }, 2);
-                    if (command.Length == 0)
-                        return;
-
-                    opResult = m_remoteCommands.Execute(command[0], (command.Length == 2 ? command[1] : string.Empty));
-                }
-                m_socketServer.SendMessage(string.Format("{0} {1}\r\n", (int)opResult.StatusCode, opResult.StatusText), e.TcpClient);
-                if (opResult.StatusCode == OpStatusCode.Ok)
-                {
-                    m_socketServer.SendMessage(opResult.ToString(), e.TcpClient);
-                    m_socketServer.SendMessage(".\r\n", e.TcpClient);
-                }
-
-            }
-            catch (Exception ex)
-            {
-                Trace.TraceError(ex.ToString());
-            }
-        }
-
-        /// <summary>
-        /// Handles the received commands of the m_httpServer control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="args">The <see cref="HttpServer.HttpEventArgs"/> instance containing the event data.</param>
-        void m_httpServer_NewRequest(object sender, HttpEventArgs e)
-        {
-            Thread http_thread = new Thread(new ParameterizedThreadStart(m_httpServer_NewRequest_thread));
-            http_thread.Start(e);
-        }
-        void m_httpServer_NewRequest_thread(Object o)
-        {
-            HttpEventArgs e = (HttpEventArgs)o;
-            m_httpServer_NewRequest_thread(e);
-        }
-        void m_httpServer_NewRequest_thread(HttpEventArgs e)
-        {
-            OpResult opResult = new OpResult(OpStatusCode.BadRequest);
-            string sCommand = "";
-            string sParam = "";
-            string sBody = "";
-            string sTempBody = "";
-
-            try
-            {
-                // Show error for index
-                if (e.Request.Length == 0)
-                {
-                    sCommand = "<i>No command specified.</i>";
-                    sParam = "<i>No parameters specified.</i>";
-                }
-                else
-                {
-                    string[] req = e.Request.Split(new char[] { '?' }, 2); //Strip off "?"
-                    string[] cmd_stack = req[0].Split(new char[] { '/' });
-                    for (int idx = 0; idx < cmd_stack.Length; idx++)
-                    {
-                        sTempBody = "";
-                        string[] command = cmd_stack[idx].Split(new char[] { ' ' }, 2);
-                        if (command.Length == 0)
-                            return;
-                        sCommand = command[0];
-                        sParam = (command.Length == 2 ? command[1] : string.Empty);
-                        if (sCommand.Equals("help", StringComparison.InvariantCultureIgnoreCase))
-                            opResult = m_remoteCommands.CommandListHTML(GetPortNumber(m_basePortNumber));
-                        else if (sCommand.Equals("format", StringComparison.InvariantCultureIgnoreCase))
-                        {
-                            ICommand formatter = new customCmd(sBody);
-                            opResult = formatter.Execute(sParam);
-                            sBody = "";
-                        }
-                        else opResult = m_remoteCommands.Execute(sCommand, sParam);
-                        sTempBody = opResult.ToString();
-                        if (sParam.Length == 0) sParam = "<i>No parameters specified.</i>";
-                        if (opResult.StatusCode != OpStatusCode.Ok && opResult.StatusCode != OpStatusCode.Success)
-                        {
-                            sTempBody = string.Format("<h1>ERROR<hr>Command: {0}<br>Params: {1}<br>Returned: {2} - {3}<hr>See <a href='help'>Help</a></h1>", sCommand, sParam, opResult.StatusCode, opResult.ToString());
-                            //if (sBody.Length > 0) sBody += "<HR>";
-                            //sBody += sTempBody;
-                            //break;
-                        }
-                        else if (opResult.StatusCode != OpStatusCode.OkImage)
-                        {
-                            if (sTempBody.Length > 0)
-                            {
-                                if (sTempBody.TrimStart()[0] != '<') sTempBody = "<pre>" + sTempBody + "</pre>";
-                            }
-                            else
-                            {
-                                sTempBody = string.Format("<h1>Ok<hr>Last Command: '{0}'<br>Params: {1}<br>Returned: {2}<hr>See <a href='help'>Help</a></h1>", sCommand, sParam, opResult.StatusCode);
-                            }
-                            //if (sBody.Length > 0) sBody += "<HR>";
-                            //sBody += sTempBody;
-                        }
-                        if (sBody.Length > 0) sBody += "<HR>";
-                        sBody += sTempBody;
-                    }
-                }
-                if (opResult.StatusCode == OpStatusCode.OkImage) m_httpServer.SendImage(opResult.ToString(), opResult.StatusText, e.HttpSocket);
-                else m_httpServer.SendPage(string.Format("{0}\r\n", sBody), e.HttpSocket);
-            }
-            catch (Exception ex)
-            {
-                m_httpServer.SendPage(string.Format("<html><body>EXCEPTION: {0}<hr></body></html>",
-                        ex.Message), e.HttpSocket);
-                Trace.TraceError(ex.ToString());
-            }
-        }
+        }      
 
         #endregion
 
         #region Private Supporting Methods
+
         /// <summary>
         /// Gets the port number for the tcp server.
         /// </summary>
         /// <param name="basePort">The base port.</param>
         /// <returns></returns>
-        private int GetPortNumber(int basePort)
+        public static int GetPortNumber(int basePort)
         {
             string principalName = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
             int sessionId = Process.GetCurrentProcess().SessionId;
@@ -348,7 +172,9 @@ namespace VmcController.AddIn
             else if (sessionId == 1)
                 return basePort;
             else
-                throw new InvalidOperationException("Unable to determine correct port number");
+                return basePort;
+               //Not sure why on my last two machines (Win8) sessionId was 2 so I'm commenting out -Skip Mercier
+               //throw new InvalidOperationException("Unable to determine correct port number");
         }
 
         /// <summary>
@@ -357,9 +183,59 @@ namespace VmcController.AddIn
         /// <value>The version info.</value>
         public static string VersionInfo
         {
-            get {
+            get
+            {
                 return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
             }
+        }
+
+        public static MediaExperience getMediaExperience()
+        {
+            var mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
+
+            // possible workaround for Win7/8 bug
+            if (mce == null)
+            {
+                System.Threading.Thread.Sleep(200);
+                mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
+                if (mce == null)
+                {
+                    try
+                    {
+                        var fi = AddInHost.Current.MediaCenterEnvironment.GetType().GetField("_checkedMediaExperience", BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (fi != null)
+                        {
+                            fi.SetValue(AddInHost.Current.MediaCenterEnvironment, false);
+                            mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
+                        }
+
+                    }
+                    catch (Exception)
+                    {
+                        // give up 
+                    }
+
+                }
+            }
+            return mce;
+        }
+
+        public static bool isWmpRunning()
+        {
+            foreach (Process p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.MainModule.ModuleName.Contains("wmplayer"))
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            }
+            return false;
         }
 
         /// <summary>

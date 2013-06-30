@@ -130,12 +130,19 @@ namespace VmcController.MceState {
 				m_tcpListener.Stop();
 			}
 
-			foreach (TcpClient tcpClient in m_tcpClients) {
-				if (tcpClient != null) {
-					CloseClient(tcpClient);
-				}
-			}
+            closeClients();
 		}
+
+        public void closeClients()
+        {
+            foreach (TcpClient tcpClient in m_tcpClients)
+            {
+                if (tcpClient != null)
+                {
+                    CloseClient(tcpClient);
+                }
+            }
+        }
 
 		#endregion
 

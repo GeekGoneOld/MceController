@@ -44,6 +44,8 @@
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -75,25 +77,19 @@
     </StartProgram>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ehiProxy, Version=6.0.6000.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\DLL\ehiProxy.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="ehRecObj, Version=6.0.6000.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\DLL\ehRecObj.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Microsoft.MediaCenter, Version=6.0.6000.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\DLL\Microsoft.MediaCenter.dll</HintPath>
+      <HintPath>..\Binaries\Microsoft.MediaCenter.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Microsoft.MediaCenter.UI, Version=6.0.6000.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\DLL\Microsoft.MediaCenter.UI.dll</HintPath>
+      <HintPath>..\Binaries\Microsoft.MediaCenter.UI.dll</HintPath>
       <Private>False</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <Private>True</Private>
+      <HintPath>..\packages\Newtonsoft.Json.5.0.6\lib\net35\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore, Version=3.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=x86">
       <RequiredTargetFramework>3.0</RequiredTargetFramework>
@@ -122,43 +118,45 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AddInModule.cs" />
+    <Compile Include="BufferManager.cs" />
     <Compile Include="COM Interfaces.cs" />
     <Compile Include="Commands\AnnounceCmd.cs" />
     <Compile Include="Commands\CapabilitiesCmd.cs" />
-    <Compile Include="Commands\GetNowPlaying.cs" />
+    <Compile Include="Commands\PlayMediaCmd.cs" />
     <Compile Include="Commands\VersionInfoPluginCmd.cs" />
     <Compile Include="Commands\RestartMcCmd.cs" />
     <Compile Include="Commands\SuspendCmd.cs" />
     <Compile Include="Commands\NotBoxCmd.cs" />
     <Compile Include="Commands\NotBoxRichCmd.cs" />
+    <Compile Include="DataHolderToken.cs" />
     <Compile Include="getFileInfo.cs" />
-    <Compile Include="Commands\NITInfoCmd.cs" />
     <Compile Include="Commands\CustomFormat.cs" />
     <Compile Include="Commands\MacroCmd.cs" />
     <Compile Include="Commands\MediaChangerCmd.cs" />
-    <Compile Include="Commands\EpgCmd.cs" />
     <Compile Include="Commands\MediaMetaDataCmd.cs" />
     <Compile Include="Commands\MsgBoxCmd.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Commands\MsgBoxRichCmd.cs" />
-    <Compile Include="Commands\musicCmd.cs" />
+    <Compile Include="Commands\MusicCmd.cs" />
     <Compile Include="Commands\photoCmd.cs" />
-    <Compile Include="Commands\ScheduleCmd.cs" />
     <Compile Include="Commands\FullScreenCmd.cs" />
     <Compile Include="Commands\SendStringCmd.cs" />
     <Compile Include="Commands\SysCommand.cs" />
     <Compile Include="Commands\SendKeyCmd.cs" />
-    <Compile Include="Commands\PlayMediaCmd.cs" />
     <Compile Include="Commands\UnavailableCmd.cs" />
-    <Compile Include="Commands\VoumeCmd.cs" />
+    <Compile Include="Commands\VolumeCmd.cs" />
     <Compile Include="Commands\DvdRomCmd.cs" />
     <Compile Include="Commands\VersionInfoCmd.cs" />
     <Compile Include="Commands\NavigateToPage.cs" />
     <Compile Include="Commands\PositionCmd.cs" />
     <Compile Include="Commands\PlayRateCmd.cs" />
     <Compile Include="HttpServer.cs" />
+    <Compile Include="Logger.cs" />
+    <Compile Include="MediaItem.cs" />
+    <Compile Include="NowPlayingList.cs" />
     <Compile Include="OpResult.cs" />
+    <Compile Include="MediaPlayState.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -176,13 +174,16 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="RemoteHostInfo.cs" />
-    <Compile Include="TcpSocketServer.cs" />
+    <Compile Include="SocketAsyncEventArgPool.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Keyfile.snk" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="app.config" />
+    <None Include="app.config">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="packages.config" />
     <None Include="VmcController.Add-In.xml" />
   </ItemGroup>
   <ItemGroup>
@@ -191,16 +192,6 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
-  </ItemGroup>
-  <ItemGroup>
-    <COMReference Include="WMPLib">
-      <Guid>{6BF52A50-394A-11D3-B153-00C04F79FAA6}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Isolated>False</Isolated>
-    </COMReference>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0">
@@ -224,11 +215,23 @@
       <Install>true</Install>
     </BootstrapperPackage>
   </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="WMPLib">
+      <Guid>{6BF52A50-394A-11D3-B153-00C04F79FAA6}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+  </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>
     </PostBuildEvent>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
