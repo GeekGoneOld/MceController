@@ -142,7 +142,7 @@ namespace VmcController.AddIn
             m_commands.Add("music-cover", new MusicCmd(MusicCmd.SERV_COVER));
             m_commands.Add("music-clear-cache", new MusicCmd(MusicCmd.CLEAR_CACHE));
             m_commands.Add("music-cache-status", new MusicCmd(MusicCmd.CLEAR_CACHE));
-            m_commands.Add("music-stats", new MusicCmd(MusicCmd.LIST_STATS));
+            m_commands.Add("music-list-stats", new MusicCmd(MusicCmd.LIST_STATS));
 
             m_commands.Add("=== Photo Library Commands: ==========", null);
             m_commands.Add("photo-clear-cache", new photoCmd(photoCmd.CLEAR_CACHE));

@@ -20,6 +20,7 @@ namespace VmcController.AddIn
         private OpStatusCode m_statusCode = OpStatusCode.BadRequest;
         private string m_statusText = string.Empty;
         private StringBuilder m_content = new StringBuilder();
+        private int result_count = 0;
 
         public OpResult() { }
 
@@ -43,6 +44,12 @@ namespace VmcController.AddIn
         public string ContentText
         {
             set { m_content.Remove(0, m_content.Length); m_content.Append(value); }
+        }
+
+        public int ResultCount
+        {
+            set { result_count = value; }
+            get { return result_count; }
         }
 
         public int Length

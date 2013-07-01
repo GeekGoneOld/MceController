@@ -33,6 +33,7 @@ using System.Xml;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using WMPLib;
+using Newtonsoft.Json;
 
 
 namespace VmcController.AddIn
@@ -623,6 +624,56 @@ namespace VmcController.AddIn
             http_thread.Start(e);
         }
 
+        public class LibraryStats
+        {
+            public int albums = 0;
+            public int album_artists = 0;
+            public int artists = 0;
+            public int genres = 0;
+            public int songs = 0;
+            public int playlists = 0;
+        }
+
+        private OpResult getLibraryStats()
+        {
+            OpResult opResult = new OpResult();
+            opResult.StatusCode = OpStatusCode.Json;
+
+            int[] list_codes = new int[] {MusicCmd.LIST_ALBUMS, MusicCmd.LIST_ALBUM_ARTISTS, MusicCmd.LIST_ARTISTS, MusicCmd.LIST_GENRES,
+                MusicCmd.LIST_DETAILS, MusicCmd.LIST_PLAYLISTS};
+
+            LibraryStats library_stats = new LibraryStats();
+            
+            foreach (int i in list_codes)
+            {
+                MusicCmd cmd = new MusicCmd(i);
+                cmd.setStatsOnly();
+                switch (i)
+                {
+                    case MusicCmd.LIST_ALBUMS:
+                        library_stats.albums = cmd.Execute("").ResultCount;
+                        break;
+                    case MusicCmd.LIST_ALBUM_ARTISTS:
+                        library_stats.album_artists = cmd.Execute("").ResultCount;
+                        break;
+                    case MusicCmd.LIST_ARTISTS:
+                        library_stats.artists = cmd.Execute("").ResultCount;
+                        break;
+                    case MusicCmd.LIST_GENRES:
+                        library_stats.genres = cmd.Execute("").ResultCount;
+                        break;
+                    case MusicCmd.LIST_DETAILS:
+                        library_stats.songs = cmd.Execute("").ResultCount;
+                        break;
+                    case MusicCmd.LIST_PLAYLISTS:
+                        library_stats.playlists = cmd.Execute("").ResultCount;
+                        break;
+                }
+            }
+            opResult.ContentText = JsonConvert.SerializeObject(library_stats, Newtonsoft.Json.Formatting.Indented);
+            return opResult;            
+        }
+
         /// <summary>
         /// Handles the received commands of the m_httpServer control.
         /// </summary>
@@ -771,6 +822,10 @@ namespace VmcController.AddIn
                         else if (token.opResult != null)
                         {
                             opResult = token.opResult;
+                        }
+                        else if (sCommand.Equals("music-list-stats"))
+                        {
+                            opResult = getLibraryStats();
                         }
                         else
                         {
