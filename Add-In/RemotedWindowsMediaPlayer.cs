@@ -9,6 +9,8 @@ namespace VmcController.AddIn
     using WMPLib;
     using VmcController.AddIn.Commands;
     using System.Collections;
+    using System.Diagnostics;
+    using System.Security.Permissions;
 
 
     /// <summary>
@@ -26,7 +28,7 @@ namespace VmcController.AddIn
         /// </summary>
         public RemotedWindowsMediaPlayer() : base("6bf52a52-394a-11d3-b153-00c04f79faa6")
         {
-        }
+        }     
 
         /// <summary>
         /// Used to attach the appropriate interface to Windows Media Player.
@@ -40,7 +42,7 @@ namespace VmcController.AddIn
                 Init();
                 return;
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine(ex.ToString());
             }
@@ -57,18 +59,36 @@ namespace VmcController.AddIn
             Player = this.GetOcx() as WindowsMediaPlayer;
         }
 
+        private bool isWmpRunning()
+        {
+            foreach (Process p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.MainModule.ModuleName.Contains("wmplayer"))
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            }
+            return false;
+        }
+
         public WindowsMediaPlayer getPlayer()
         {
-            if (Player != null)
+            if (Player == null)
             {
                 Init();
             }
-            return Player;
+            return Player; 
         }
 
         public IWMPPlaylist getNowPlaying()
         {
-            if (Player != null)
+            if (getPlayer() != null)
             {
                 if (Player.currentPlaylist == null)
                 {
@@ -76,12 +96,12 @@ namespace VmcController.AddIn
                 }
                 return Player.currentPlaylist;
             }
-            return null;
+            return null; 
         }
 
         public IWMPMedia getCurrentMediaItem()
         {
-            if (Player != null)
+            if (getPlayer() != null)
             {
                 if (Player.currentMedia == null)
                 {
@@ -89,7 +109,7 @@ namespace VmcController.AddIn
                 }
                 return Player.currentMedia;
             }
-            return null;
+            return null; 
         }
 
         public bool setNowPlaying(int index)
@@ -109,7 +129,7 @@ namespace VmcController.AddIn
 
         public WMPPlayState getPlayState()
         {
-            if (Player != null)
+            if (getPlayer() != null)
             {
                 return Player.playState;
             }
@@ -118,15 +138,24 @@ namespace VmcController.AddIn
 
         public void setShuffleMode()
         {
-            if (Player != null)
+            if (getPlayer() != null)
             {
                 Player.settings.setMode("shuffle", true);
             }
         }
 
+        public bool isShuffleModeEnabled()
+        {
+            if (getPlayer() != null)
+            {
+                return Player.settings.getMode("shuffle");
+            }
+            return false;
+        }
+
         public IWMPControls getPlayerControls()
         {
-            if (Player != null)
+            if (getPlayer() != null)
             {
                 return Player.controls;
             }

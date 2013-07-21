@@ -40,7 +40,7 @@ namespace VmcController.AddIn.Commands
         {
 
             OpResult opResult = new OpResult();
-            opResult.StatusCode = OpStatusCode.Ok;
+            opResult.StatusCode = OpStatusCode.Success;
             Application.SetSuspendState(PowerState.Suspend, false, false);
             return opResult;
         }

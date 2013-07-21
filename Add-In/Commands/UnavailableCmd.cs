@@ -53,7 +53,7 @@ namespace VmcController.AddIn.Commands
         {
             OpResult opResult = new OpResult();
             opResult.StatusCode = OpStatusCode.BadRequest;
-            opResult.AppendFormat("This command unavailable due to exception at load: {0}", err_text);
+            opResult.StatusText = "This command unavailable due to exception at load: " + err_text;
             return opResult;
         }
 

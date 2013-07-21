@@ -17,6 +17,8 @@
 using System;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
+using VmcController.AddIn.Metadata;
+using System.Collections.Generic;
 
 namespace VmcController.AddIn.Commands
 {
@@ -47,8 +49,10 @@ namespace VmcController.AddIn.Commands
             OpResult opResult = new OpResult();
             try
             {
-                opResult.StatusCode = OpStatusCode.Ok;
-                opResult.AppendFormat("version={0}", AddInHost.Current.MediaCenterEnvironment.Version.ToString());
+                VersionObject vObject = new VersionObject();
+                vObject.version = AddInHost.Current.MediaCenterEnvironment.Version.ToString();
+                opResult.StatusCode = OpStatusCode.Success;
+                opResult.ContentObject = vObject;
             }
             catch (Exception ex)
             {

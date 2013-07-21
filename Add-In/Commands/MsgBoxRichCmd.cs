@@ -73,9 +73,7 @@ namespace VmcController.AddIn.Commands
         {
             OpResult opResult = new OpResult();
             try
-            {
-                
-
+            {                
                 Match match = m_regex.Match(param);
                 System.Collections.ArrayList buttonArray = new System.Collections.ArrayList();
                 System.Collections.Hashtable buttonHT = new System.Collections.Hashtable();
@@ -157,7 +155,7 @@ namespace VmcController.AddIn.Commands
 
                     opResult.AppendFormat("response={0}", btnResult);
 
-                    opResult.StatusCode = OpStatusCode.Ok;
+                    opResult.StatusCode = OpStatusCode.Success;
 
                 }
             }

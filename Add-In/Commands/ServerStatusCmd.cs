@@ -1,5 +1,6 @@
+using System;
 /*
- * Copyright (c) 2007 Jonathan Bradshaw
+ * Copyright (c) 2013 Skip Mercier
  * 
  * This software is provided 'as-is', without any express or implied warranty. 
  * In no event will the authors be held liable for any damages arising from the use of this software.
@@ -14,18 +15,17 @@
  * 3. This notice may not be removed or altered from any source distribution.
  * 
  */
-using System;
-using Microsoft.MediaCenter;
-using Microsoft.MediaCenter.Hosting;
+using System.Text;
 
 namespace VmcController.AddIn.Commands
 {
 	/// <summary>
 	/// Summary description for FullScreen command.
 	/// </summary>
-	public class FullScreenCmd: IExperienceCommand
-    {
-        #region IExperienceCommand Members
+	public class ServerStatusCmd : ICommand
+	{
+
+        #region ICommand Members
 
         /// <summary>
         /// Shows the syntax.
@@ -33,8 +33,13 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public string ShowSyntax()
         {
-            return "- moves the current media playback experience into full-screen mode";
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("- without params, gets current cache build status (is_building) and the cache_build_hour and the send_buffer_size settings of the server");
+            sb.AppendLine("use params [set-build-hour:hour] where hour is >= 0 and < 24 or [set-send-buffer:size] where size is an integer greater than " + HttpSocketServer.MIN_SEND_BUFFER_SIZE);
+            return sb.ToString();
         }
+
+        
 
         /// <summary>
         /// Executes the specified param.
@@ -42,20 +47,9 @@ namespace VmcController.AddIn.Commands
         /// <param name="param">The param.</param>
         /// <param name="result">The result.</param>
         /// <returns></returns>
-        public OpResult ExecuteMediaExperience(string param)
+        public OpResult Execute(string param)
         {
-            OpResult opResult = new OpResult();
-            try
-            {
-                MediaExperienceWrapper.Instance.GoToFullScreen();
-                opResult.StatusCode = OpStatusCode.Success;
-            }
-            catch (Exception ex)
-            {
-                opResult.StatusCode = OpStatusCode.Exception;
-                opResult.StatusText = ex.Message;
-            }
-            return opResult;
+            return new OpResult();
         }
 
         #endregion

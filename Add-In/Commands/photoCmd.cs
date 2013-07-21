@@ -682,9 +682,7 @@ namespace VmcController.AddIn.Commands
                 sResponse = sResponse + Encoding.ASCII.GetString(bytes, 0, read);
             }
             reader.Close();
-            fs.Close();
-
-            opResult.ContentText = Convert.ToBase64String(bytes);
+            opResult.ImageData = bytes;
             return opResult;
         }
 
@@ -820,9 +818,8 @@ namespace VmcController.AddIn.Commands
             StreamReader reader = new StreamReader(fn);
 
             debug_last_action = "Reading cache file.";
-            or.ContentText = reader.ReadToEnd();
+            or = new OpResult(reader.ReadToEnd());
             reader.Close();
-
             return or;
         }
 

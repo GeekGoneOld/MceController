@@ -44,12 +44,12 @@ namespace VmcController.AddIn.Commands
 
     }
 
-    class AnnounceCmd : ICommand
+    class AnnounceCmd : IExperienceCommand
     {
 
         private static Regex m_regex = new Regex("\"(?<caption>.+?)\"\\s+\"(?<message>.+?)\"\\s+(?<timeout>\\d+)\\s+\"(?<buttoncodes>.+?)\"\\s+\"(?<modal>.+?)\"\\s+\"(?<imagepath>.+?)\"\\s+\"(?<ssmltospeak>.+?)\"");
 
-        #region ICommand Members
+        #region IExperienceCommand Members
 
         /// <summary>
         /// Shows the syntax.
@@ -64,7 +64,7 @@ namespace VmcController.AddIn.Commands
         {
             //bool isPlaying = false;
 
-            if (AddInModule.getMediaExperience() == null)
+            if (MediaExperienceWrapper.Instance == null)
             {
                 return false;
             }
@@ -86,7 +86,7 @@ namespace VmcController.AddIn.Commands
         /// <param name="param">The param.</param>
         /// <param name="result">The result.</param>
         /// <returns></returns>
-        public OpResult Execute(string param)
+        public OpResult ExecuteMediaExperience(string param)
         {
             OpResult opResult = new OpResult();
 
@@ -96,8 +96,6 @@ namespace VmcController.AddIn.Commands
 
             if (match.Success)
             {
-
-
                 //try
                 //{
                 //msgResult = msg.Execute(msgboxcmd);
@@ -208,7 +206,6 @@ namespace VmcController.AddIn.Commands
                 }
 
                 //opResult.AppendFormat(msgResult.StatusText);
-                opResult.AppendFormat("Ok");
                 opResult.StatusCode = OpStatusCode.Ok;
             }
 

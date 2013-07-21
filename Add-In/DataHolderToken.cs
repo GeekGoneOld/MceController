@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using VmcController.AddIn.Metadata;
 using WMPLib;
 
 namespace VmcController.AddIn
@@ -12,8 +13,6 @@ namespace VmcController.AddIn
     class DataHolderToken
     {
         //Variables for handling the network request thread
-        internal NowPlayingList nowPlaying;
-        internal MediaItem currentMedia;        
         internal OpResult opResult;
 
         internal Byte[] dataMessageReceived;
@@ -41,10 +40,7 @@ namespace VmcController.AddIn
 
         public void Reset()
         {
-            nowPlaying = null;
-            currentMedia = null;
             opResult = null;
-
             httpRequest = null;
             dataMessageReceived = null;
             dataToSend = null;

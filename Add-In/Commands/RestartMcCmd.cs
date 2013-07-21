@@ -54,7 +54,7 @@ namespace VmcController.AddIn.Commands
                         {
                             p.Kill();
                             Process.Start("ehshell.exe");
-                            opResult.StatusCode = OpStatusCode.Ok;
+                            opResult.StatusCode = OpStatusCode.Success;
                         }
                         catch (Exception ex)
                         {

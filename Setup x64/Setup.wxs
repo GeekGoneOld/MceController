@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
-<?define Property_ProductVersion = "1.5.0.0" ?>
-<?define Property_ProductCode = "86989cf7-e48a-428d-af21-ab36fe9d3d80" ?>
+<?define Property_ProductVersion = "1.6.0.0" ?>
+<?define Property_ProductCode = "03c8cf6f-a5dc-41b7-b475-6733c69ea165" ?>
 <?define Property_UpgradeCode = "e97b6ad4-5870-442F-8837-aa2ce19b1b31" ?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
 		 xmlns:complus="http://schemas.microsoft.com/wix/ComPlusExtension"

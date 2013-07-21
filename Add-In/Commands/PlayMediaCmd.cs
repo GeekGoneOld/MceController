@@ -23,6 +23,7 @@ using Microsoft.MediaCenter.Hosting;
 using WMPLib;
 using System.Threading;
 using System.Collections;
+using Newtonsoft.Json;
 
 namespace VmcController.AddIn.Commands {
 
@@ -82,13 +83,12 @@ namespace VmcController.AddIn.Commands {
 		/// <param name="result">The result.</param>
 		/// <returns></returns>
 		public OpResult Execute(string param) {
-
             OpResult opResult = new OpResult();
             try
             {
                 if (setNowPlaying())
                 {
-                    opResult.StatusCode = OpStatusCode.Success;
+                    opResult.StatusCode = OpStatusCode.Success;                    
                 }
                 else
                 {
@@ -103,7 +103,7 @@ namespace VmcController.AddIn.Commands {
 			return opResult;
 		}
 
-        private void setMediaItem(IWMPMedia item, int j)
+        private void setMediaItem(IWMPMedia item, int index)
         {
             if (item != null)
             {
@@ -115,7 +115,7 @@ namespace VmcController.AddIn.Commands {
                 else
                 {
                     bool append;
-                    if (j == 0)
+                    if (index == 0)
                     {
                         append = m_appendToQueue;
                     }
@@ -145,8 +145,9 @@ namespace VmcController.AddIn.Commands {
             if (m_indexes != null)
             {
                 for (int j = 0; j < m_indexes.Count; j++)
-                {                    
-                    setMediaItem(m_playlist.get_Item(j), j);                    
+                {
+                    setMediaItem(m_playlist.get_Item((int)m_indexes[j]), j);
+                    System.Threading.Thread.Sleep(100);
                 }
             }
             else
@@ -154,6 +155,7 @@ namespace VmcController.AddIn.Commands {
                 for (int j = 0; j < m_playlist.count; j++)
                 {
                     setMediaItem(m_playlist.get_Item(j), j);
+                    System.Threading.Thread.Sleep(100);    //Helps with stopped responding errors?
                 }
             }
             return true;

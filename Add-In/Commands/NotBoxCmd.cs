@@ -18,6 +18,7 @@ using System;
 using System.Text.RegularExpressions;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
+using VmcController.AddIn.Metadata;
 
 namespace VmcController.AddIn.Commands
 {
@@ -61,13 +62,14 @@ namespace VmcController.AddIn.Commands
                         imagefile = GetFileInfo.GetNewestImage(imagefile);
                     }
 
-                    opResult.AppendFormat("response={0}", AddInHost.Current.MediaCenterEnvironment.DialogNotification(
-                        match.Groups["message"].Value,
-                        new System.Collections.ArrayList(1),
-                        int.Parse(match.Groups["timeout"].Value),
-                        "file://" + imagefile
-                        ).ToString());
+                    DialogResultObject dialogObject = new DialogResultObject();
+                    dialogObject.result = AddInHost.Current.MediaCenterEnvironment.DialogNotification(
+                                            match.Groups["message"].Value,
+                                            new System.Collections.ArrayList(1),
+                                            int.Parse(match.Groups["timeout"].Value),
+                                            "file://" + imagefile);
                     opResult.StatusCode = OpStatusCode.Ok;
+                    opResult.ContentObject = dialogObject;
                 }
             }
             catch (Exception ex)

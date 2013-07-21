@@ -25,15 +25,17 @@ using System.Collections.Generic;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
 using System.Reflection;
+using VmcController.AddIn.Metadata;
 
 namespace VmcController.AddIn.Commands
 {
     /// <summary>
     /// Summary description for FullScreen command.
     /// </summary>
-    public class MediaMetaDataCmd : ICommand
+    public class MediaMetaDataCmd : IExperienceCommand
     {
-        #region ICommand Members
+
+        #region IExperienceCommand Members
 
         /// <summary>
         /// Shows the syntax.
@@ -49,24 +51,23 @@ namespace VmcController.AddIn.Commands
         /// </summary>
         /// <param name="param">The param.</param>
         /// <returns></returns>
-        public OpResult Execute(string param)
+        public OpResult ExecuteMediaExperience(string param)
         {
             // Now try to read again
             OpResult opResult = new OpResult();
             try
             {
-                if (AddInModule.getMediaExperience() == null)
+                if (MediaExperienceWrapper.Instance == null)
                 {
                     opResult.StatusCode = OpStatusCode.BadRequest;
-                    opResult.AppendFormat("No media playing");
+                    opResult.StatusText = "No media playing";
                 }
                 else
                 {
-                    foreach (KeyValuePair<string, object> entry in AddInHost.Current.MediaCenterEnvironment.MediaExperience.MediaMetadata)
-                    {
-                        opResult.AppendFormat("{0}={1}", entry.Key, entry.Value);
-                    }
+                    MetadataObject media = new MetadataObject();
+                    media.metadata = MediaExperienceWrapper.Instance.MediaMetadata;
                     opResult.StatusCode = OpStatusCode.Ok;
+                    opResult.ContentObject = media;
                 }
             }
             catch (Exception ex)

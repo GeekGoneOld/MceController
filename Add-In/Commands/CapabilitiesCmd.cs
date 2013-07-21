@@ -19,6 +19,7 @@ using System.Text;
 using System.Collections.Generic;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
+using VmcController.AddIn.Metadata;
 
 namespace VmcController.AddIn.Commands
 {
@@ -49,11 +50,10 @@ namespace VmcController.AddIn.Commands
 
             try
             {
-                foreach (KeyValuePair<string, object> entry in AddInHost.Current.MediaCenterEnvironment.Capabilities)
-                {
-                    opResult.AppendFormat("{0}={1}", entry.Key, entry.Value);
-                }
+                CapabilitiesObject dictionary = new CapabilitiesObject();
+                dictionary.capabilities = AddInHost.Current.MediaCenterEnvironment.Capabilities;
                 opResult.StatusCode = OpStatusCode.Ok;
+                opResult.ContentObject = dictionary;
             }
             catch (Exception ex)
             {

@@ -17,14 +17,17 @@
 using System;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
+using Newtonsoft.Json;
 
 namespace VmcController.AddIn.Commands
 {
 	/// <summary>
 	/// Summary description for Volume command.
 	/// </summary>
-	public class Volume : ICommand
+	public class VolumeCmd : ICommand
 	{
+        public const int NO_VOLUME_STATE = -1;
+
         #region ICommand Members
 
         /// <summary>
@@ -36,6 +39,16 @@ namespace VmcController.AddIn.Commands
             return "<0-50|Up|Down|Mute|UnMute|Get>";
         }
 
+        public int getVolume()
+        {
+            return (int)(AddInHost.Current.MediaCenterEnvironment.AudioMixer.Volume / 1310.7);
+        }
+
+        public bool isMuted()
+        {
+            return AddInHost.Current.MediaCenterEnvironment.AudioMixer.Mute;
+        }
+
         /// <summary>
         /// Executes the specified param.
         /// </summary>
@@ -44,9 +57,11 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public OpResult Execute(string param)
         {
-            OpResult opResult = new OpResult(OpStatusCode.Success);
+            OpResult opResult = new OpResult();            
             try
             {
+                opResult.StatusCode = OpStatusCode.Success;
+                VolumeState volumeState = new VolumeState();
                 if (param.Equals("Up", StringComparison.InvariantCultureIgnoreCase))
                     AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeUp();
                 else if (param.Equals("Down", StringComparison.InvariantCultureIgnoreCase))
@@ -55,20 +70,14 @@ namespace VmcController.AddIn.Commands
                     AddInHost.Current.MediaCenterEnvironment.AudioMixer.Mute = true;
                 else if (param.Equals("UnMute", StringComparison.InvariantCultureIgnoreCase))
                     AddInHost.Current.MediaCenterEnvironment.AudioMixer.Mute = false;
-                else if (param.Equals("Get", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    opResult.StatusCode = OpStatusCode.Ok;
-                    opResult.AppendFormat("volume={0}", (int)(AddInHost.Current.MediaCenterEnvironment.AudioMixer.Volume / 1310.7));
-                }
-                else
+                else if (!param.Equals("Get", StringComparison.InvariantCultureIgnoreCase))
                 {
                     int desiredLevel = int.Parse(param);
                     if (desiredLevel > 50 || desiredLevel < 0)
                     {
                         opResult.StatusCode = OpStatusCode.BadRequest;
-                        return opResult;
+                        opResult.StatusText = "Volume must be < 50 and > 0!";
                     }
-
                     int volume = (int)(AddInHost.Current.MediaCenterEnvironment.AudioMixer.Volume / 1310.7);
                     for (int level = volume; level > desiredLevel; level--)
                         AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeDown();
@@ -76,6 +85,9 @@ namespace VmcController.AddIn.Commands
                     for (int level = volume; level < desiredLevel; level++)
                         AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeUp();
                 }
+                volumeState.volume = getVolume();
+                volumeState.is_muted = isMuted();
+                opResult.ContentObject = volumeState;               
             }
             catch (Exception ex)
             {
@@ -83,6 +95,12 @@ namespace VmcController.AddIn.Commands
                 opResult.StatusText = ex.Message;
             }
             return opResult;
+        }
+
+        public class VolumeState : OpResultObject
+        {
+            public bool is_muted = false;
+            public int volume = NO_VOLUME_STATE;
         }
 
         #endregion

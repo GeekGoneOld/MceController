@@ -119,15 +119,34 @@
   <ItemGroup>
     <Compile Include="AddInModule.cs" />
     <Compile Include="BufferManager.cs" />
+    <Compile Include="MediaExperienceWrapper.cs" />
+    <Compile Include="Metadata\Album.cs" />
+    <Compile Include="Metadata\DialogResultObject.cs" />
+    <Compile Include="Metadata\Library.cs" />
     <Compile Include="COM Interfaces.cs" />
     <Compile Include="Commands\AnnounceCmd.cs" />
     <Compile Include="Commands\CapabilitiesCmd.cs" />
+    <Compile Include="Commands\DownloadUpdateCmd.cs" />
+    <Compile Include="Commands\ServerSettingsCmd.cs" />
     <Compile Include="Commands\PlayMediaCmd.cs" />
-    <Compile Include="Commands\VersionInfoPluginCmd.cs" />
     <Compile Include="Commands\RestartMcCmd.cs" />
     <Compile Include="Commands\SuspendCmd.cs" />
     <Compile Include="Commands\NotBoxCmd.cs" />
     <Compile Include="Commands\NotBoxRichCmd.cs" />
+    <Compile Include="Metadata\CapabilitiesObject.cs" />
+    <Compile Include="Metadata\MediaSet.cs" />
+    <Compile Include="Metadata\MetadataObject.cs" />
+    <Compile Include="Metadata\NowPlaying.cs" />
+    <Compile Include="Metadata\Playlist.cs" />
+    <Compile Include="Metadata\PlaylistTrack.cs" />
+    <Compile Include="Metadata\PlayStateObject.cs" />
+    <Compile Include="Metadata\TruncatedWMPPlayState.cs" />
+    <Compile Include="Metadata\PositionObject.cs" />
+    <Compile Include="Metadata\Song.cs" />
+    <Compile Include="Metadata\Track.cs" />
+    <Compile Include="Metadata\VersionObject.cs" />
+    <Compile Include="OpResultObject.cs" />
+    <Compile Include="ServerSettings.cs" />
     <Compile Include="DataHolderToken.cs" />
     <Compile Include="getFileInfo.cs" />
     <Compile Include="Commands\CustomFormat.cs" />
@@ -153,10 +172,8 @@
     <Compile Include="Commands\PlayRateCmd.cs" />
     <Compile Include="HttpServer.cs" />
     <Compile Include="Logger.cs" />
-    <Compile Include="MediaItem.cs" />
-    <Compile Include="NowPlayingList.cs" />
     <Compile Include="OpResult.cs" />
-    <Compile Include="MediaPlayState.cs" />
+    <Compile Include="Metadata\CurrentState.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -226,6 +243,7 @@
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </COMReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>

@@ -43,8 +43,8 @@ namespace VmcController.AddIn
 {
     /// <summary>
     /// Add-in for Vista Media Center for remote TCP control
-    /// </summary>
-    public sealed class AddInModule : IAddInModule, IAddInEntryPoint
+    /// </summary>    
+    public sealed class AddInModule : IAddInModule, IAddInEntryPoint, IDisposable
     {
         #region Member Variables
 
@@ -62,14 +62,16 @@ namespace VmcController.AddIn
         public static int m_basePortNumber;
 
         /// <summary>
-        /// Available commands
-        /// </summary>
-        private RemoteCommands m_remoteCommands = new RemoteCommands();
-
-        /// <summary>
         /// HTTP Socket Server
         /// </summary>
         private HttpSocketServer m_httpServer;
+
+        private Logger logger;
+
+        private bool needs_cleanup;
+
+        private bool _disposed;
+
        
         #endregion
 
@@ -81,10 +83,16 @@ namespace VmcController.AddIn
         /// <param name="entryPointInfo">A collection of the attributes and corresponding values that were specified in the entrypoint element used to register the application's entry points</param>
         public void Initialize(Dictionary<string, object> appInfo, Dictionary<string, object> entryPointInfo)
         {
+            _disposed = false;
+
+            needs_cleanup = true;
+
+            logger = new Logger("Add-In", false);
+
             //  Set the base port number
             int.TryParse(entryPointInfo["context"].ToString(), out m_basePortNumber);           
 
-            m_httpServer = new HttpSocketServer(m_remoteCommands);
+            m_httpServer = new HttpSocketServer();
             m_httpServer.InitServer();
 
             //  Sets the wait handle to the launch method will not exit
@@ -96,10 +104,7 @@ namespace VmcController.AddIn
         /// </summary>
         public void Uninitialize()
         {
-            //  Allow our launch method to exit
-            m_waitHandle.Set();
-
-            m_httpServer.CleanUpOnExit();                
+            cleanup();              
         }
         #endregion
 
@@ -117,12 +122,20 @@ namespace VmcController.AddIn
         /// to prevent them from being released.
         /// </summary>
         /// <param name="host">An application uses this interface to access other interfaces provided by the Microsoft.MediaCenter namespace</param>
+        [STAThread]
         public void Launch(AddInHost host)
         {
             try
             {
                 //  Lower the priority of this thread
-                Thread.CurrentThread.Priority = ThreadPriority.Lowest;
+                Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+
+                //Prevents occurrence of the program has stopped responding?
+                System.Threading.Thread.Sleep(200);
+
+                //MediaExperienceWrapper.Instance.GoToFullScreen();
+
+                logger.Write("Starting http server...");
 
                 //  Setup HTTP socket listener
                 m_httpServer.StartListening(GetPortNumber(m_basePortNumber) + 10);
@@ -145,16 +158,35 @@ namespace VmcController.AddIn
 
                 //  Wait until exit request from host
                 m_waitHandle.WaitOne();
-
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                logger.Write("Exception in wait handle on Launch method: " + e.Message);
+            }
+            finally
+            {
+                cleanup();
             }
         }      
 
         #endregion
 
         #region Private Supporting Methods
+
+        private void cleanup()
+        {
+            if (needs_cleanup)
+            {
+                logger.Write("Exiting...");
+
+                //  Allow our launch method to exit
+                m_waitHandle.Set();
+
+                m_httpServer.CleanUpOnExit();
+
+                needs_cleanup = false;
+            }
+        }
 
         /// <summary>
         /// Gets the port number for the tcp server.
@@ -187,56 +219,7 @@ namespace VmcController.AddIn
             {
                 return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
             }
-        }
-
-        public static MediaExperience getMediaExperience()
-        {
-            var mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
-
-            // possible workaround for Win7/8 bug
-            if (mce == null)
-            {
-                System.Threading.Thread.Sleep(200);
-                mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
-                if (mce == null)
-                {
-                    try
-                    {
-                        var fi = AddInHost.Current.MediaCenterEnvironment.GetType().GetField("_checkedMediaExperience", BindingFlags.NonPublic | BindingFlags.Instance);
-                        if (fi != null)
-                        {
-                            fi.SetValue(AddInHost.Current.MediaCenterEnvironment, false);
-                            mce = AddInHost.Current.MediaCenterEnvironment.MediaExperience;
-                        }
-
-                    }
-                    catch (Exception)
-                    {
-                        // give up 
-                    }
-
-                }
-            }
-            return mce;
-        }
-
-        public static bool isWmpRunning()
-        {
-            foreach (Process p in Process.GetProcesses())
-            {
-                try
-                {
-                    if (p.MainModule.ModuleName.Contains("wmplayer"))
-                    {
-                        return true;
-                    }
-                }
-                catch (Exception)
-                {
-                }
-            }
-            return false;
-        }
+        }    
 
         /// <summary>
         /// Retrieves the linker timestamp.
@@ -266,6 +249,31 @@ namespace VmcController.AddIn
             dt = dt.AddSeconds(secondsSince1970);
             dt = dt.AddHours(TimeZone.CurrentTimeZone.GetUtcOffset(dt).Hours);
             return dt;
+        }
+
+        #endregion
+
+        #region IDisposable Members
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                // Need to dispose managed resources if being called manually
+                if (disposing)
+                {
+                    if (m_waitHandle != null) m_waitHandle.Close();
+                    if (m_httpServer != null) m_httpServer.Dispose();
+                    if (logger != null) logger.Dispose();
+                    _disposed = true;
+                }                
+            }
         }
 
         #endregion

@@ -18,6 +18,7 @@ using System;
 using System.Text.RegularExpressions;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
+using VmcController.AddIn.Metadata;
 
 namespace VmcController.AddIn.Commands
 {
@@ -53,13 +54,15 @@ namespace VmcController.AddIn.Commands
                 Match match = m_regex.Match(param);
                 if (match.Success)
                 {
-                    opResult.AppendFormat("response={0}", AddInHost.Current.MediaCenterEnvironment.Dialog(
-                        match.Groups["message"].Value,
-                        match.Groups["caption"].Value,
-                        DialogButtons.Ok,
-                        int.Parse(match.Groups["timeout"].Value),
-                        false).ToString());
-                    opResult.StatusCode = OpStatusCode.Ok;
+                    DialogResultObject result = new DialogResultObject();
+                    result.result = AddInHost.Current.MediaCenterEnvironment.Dialog(
+                                        match.Groups["message"].Value,
+                                        match.Groups["caption"].Value,
+                                        DialogButtons.Ok,
+                                        int.Parse(match.Groups["timeout"].Value),
+                                        false);
+                    opResult.StatusCode = OpStatusCode.Success;
+                    opResult.ContentObject = result;
                 }
             }
             catch (Exception ex)

@@ -34,20 +34,23 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using WMPLib;
 using Newtonsoft.Json;
+using VmcController.AddIn.Metadata;
 
 
 namespace VmcController.AddIn
 {
-    class HttpSocketServer 
+    public class HttpSocketServer : IDisposable
 	{
         #region Member Variables
+
+        public const int MIN_SEND_BUFFER_SIZE = 3000000;
 
         // the maximum number of connections the sample is designed to handle simultaneously 
         private int maxConnections = 4;
 
         // this variable allows us to create some extra SAEA objects for the pool,
         // if we wish.
-        private int numberOfEventArgsForRecSend = 8;
+        private int numberOfEventArgsForRecSend = 6;
 
         // max # of pending connections the listener can hold in queue
         private int backlog = 3;
@@ -58,15 +61,16 @@ namespace VmcController.AddIn
         // buffer size to use for each socket receive operation
         private int receiveBufferSize = 500;
 
-        // See comments in buffer manager.
-        private int sendBufferSize = 1000000;
-
         // the total number of clients connected to the server 
         int numConnectedSockets;
 
-        private string m_sHttpVersion;
+        private string sHttpVersion;
 
-        RemoteCommands m_remoteCommands;
+        RemoteCommands remoteCommands = new RemoteCommands();
+        ServerSettings settings = new ServerSettings();
+
+        //Writes logs to AddInModule.DATA_DIR
+        Logger logger;
 
         // represents a large reusable set of buffers for all socket operations
         BufferManager bufferManager;
@@ -86,25 +90,29 @@ namespace VmcController.AddIn
         //controlling threading really here.)  
         Semaphore maxNumberAcceptedClients;
 
-        //Writes logs to AddInModule.DATA_DIR
-        Logger logger;
+        AutoResetEvent waitHandle = new AutoResetEvent(true);
 
         //Variables below represent those related to regulating access to cache and the creation schedule
-        System.Timers.Timer cacheTimer;        
+        System.Timers.Timer cacheTimer;
+
+        protected bool _disposed;
+
                                   
         #endregion
 
 
-        public HttpSocketServer(RemoteCommands remoteCommands)
+        public HttpSocketServer()
         {
+            _disposed = false;
+
             logger = new Logger("HttpServer", false);
+            logger.Write("Loading settings...");
 
             InitSettings();
 
-            m_remoteCommands = remoteCommands;
             numConnectedSockets = 0;                                   
 
-            bufferManager = new BufferManager((receiveBufferSize + sendBufferSize) * numberOfEventArgsForRecSend, receiveBufferSize + sendBufferSize);
+            bufferManager = new BufferManager((receiveBufferSize + settings.send_buffer_size) * numberOfEventArgsForRecSend, receiveBufferSize + settings.send_buffer_size);
 
             poolOfAcceptEventArgs = new SocketAsyncEventArgsPool(maxSimultaneousAcceptOps);
             poolOfRecSendEventArgs = new SocketAsyncEventArgsPool(numberOfEventArgsForRecSend);
@@ -129,7 +137,7 @@ namespace VmcController.AddIn
                 else
                 {
                     //Create settings for the first time
-                    doc.LoadXml("<settings><sendBuffer>" + Convert.ToString(sendBufferSize) + "</sendBuffer><lastCacheTime>" + DateTime.Now + "</lastCacheTime>"
+                    doc.LoadXml("<settings><sendBuffer>" + Convert.ToString(settings.send_buffer_size) + "</sendBuffer><lastCacheTime>" + DateTime.Now + "</lastCacheTime>"
                         + "<cacheStartHour>4</cacheStartHour></settings>");
                     doc.PreserveWhitespace = true;
                     doc.Save(AddInModule.DATA_DIR + "\\settings.xml");
@@ -148,16 +156,18 @@ namespace VmcController.AddIn
             XmlDocument doc = getSettingsDoc();
             if (doc != null)
             {
-                XmlNode sendBuffer = doc.DocumentElement.SelectSingleNode("sendBuffer");
-                if (sendBuffer != null)
+                XmlNode sendBufferNode = doc.DocumentElement.SelectSingleNode("sendBuffer");
+                if (sendBufferNode != null)
                 {
-                    sendBufferSize = Convert.ToInt32(sendBuffer.InnerText);
+                    int buffer = Convert.ToInt32(sendBufferNode.InnerText);
+                    if (buffer > settings.send_buffer_size) settings.send_buffer_size = buffer;
+                    else sendBufferNode.InnerText = Convert.ToString(settings.send_buffer_size);
                 }
-                int cacheStartHour = 4;
+                int startHour = 4;
                 XmlNode cacheStartHourNode = doc.DocumentElement.SelectSingleNode("cacheStartHour");
                 if (cacheStartHourNode != null)
                 {
-                    cacheStartHour = Convert.ToInt32(cacheStartHourNode.InnerText);
+                    startHour = Convert.ToInt32(cacheStartHourNode.InnerText);
                 }
                 else
                 {
@@ -171,38 +181,154 @@ namespace VmcController.AddIn
                     doc.Save(AddInModule.DATA_DIR + "\\settings.xml");
                 }
 
-                logger.Write("Cache building is set for hour " + cacheStartHour);
-                setCacheBuildTimer(cacheStartHour);
+                logger.Write("Cache building is set for hour " + startHour);
+                setCacheBuildTimer(startHour, doc);
 
                 startCacheBuildConditionally(doc, false); 
             }
         }
 
-        private void setCacheBuildTimer(int startHour)
+        private OpResult setSendBufferSize(int size)
         {
-            //Set cache timer
-            DateTime now = DateTime.Now;
-            int hour;
-            int minutes;
-            if (startHour > now.Hour)
+            OpResult opResult = new OpResult();
+            XmlDocument doc = getSettingsDoc();
+            if (doc != null)
             {
-                hour = startHour - now.Hour;
-                minutes = 60 - now.Minute;
-            }
-            else
-            {
-                //Round now hour up one then subtract to get to 24 hour, then add to cacheStartHour
-                hour = 24 - now.Hour + 1 + startHour;
-                minutes = 60 - now.Minute;
-            }
-            if (cacheTimer == null) cacheTimer = new System.Timers.Timer();
-            else cacheTimer.Stop();
-            cacheTimer.AutoReset = false;
-            cacheTimer.Interval = 1000 * 60 * (60 * hour + minutes);
-            cacheTimer.Enabled = true;
-            cacheTimer.Elapsed += new ElapsedEventHandler(TimerElapsedEvent);
+                XmlNode sendBuffer = doc.DocumentElement.SelectSingleNode("sendBuffer");
+                if (sendBuffer != null)
+                {
+                    //Save settings
+                    sendBuffer.InnerText = Convert.ToString(size);
+                    doc.PreserveWhitespace = true;
+                    doc.Save(AddInModule.DATA_DIR + "\\settings.xml");
 
-            logger.Write("Cache timer set for " + hour + " hours and " + minutes + " minutes");
+                    opResult.StatusCode = OpStatusCode.Success;
+                    opResult.StatusText = "Buffer size set to " + size + ". Media Center must be restarted for settings to take effect.";
+                    return opResult;
+                }
+            }
+            opResult.StatusCode = OpStatusCode.BadRequest;
+            opResult.StatusText = "Error saving buffer setting!";           
+            return opResult;
+        }
+
+        private OpResult setCacheBuildTimer(int startHour, XmlDocument doc)
+        {
+            OpResult opResult = new OpResult();
+            if (doc != null)
+            {
+                XmlNode cacheStartHourNode = doc.DocumentElement.SelectSingleNode("cacheStartHour");
+                if (cacheStartHourNode != null)
+                {
+                    settings.cache_build_hour = startHour;
+                    //Save settings
+                    cacheStartHourNode.InnerText = Convert.ToString(startHour);                    
+                    doc.PreserveWhitespace = true;
+                    doc.Save(AddInModule.DATA_DIR + "\\settings.xml");
+
+                    //Set cache timer
+                    DateTime now = DateTime.Now;
+                    int hour;
+                    int minutes;
+                    if (startHour > now.Hour)
+                    {
+                        hour = startHour - now.Hour;
+                        minutes = 60 - now.Minute;
+                    }
+                    else
+                    {
+                        //Round now hour up one then subtract to get to 24 hour, then add to cacheStartHour
+                        hour = 24 - now.Hour + 1 + startHour;
+                        minutes = 60 - now.Minute;
+                    }
+                    if (cacheTimer == null) cacheTimer = new System.Timers.Timer();
+                    else cacheTimer.Stop();
+                    cacheTimer.AutoReset = false;
+                    cacheTimer.Interval = 1000 * 60 * (60 * hour + minutes);
+                    cacheTimer.Enabled = true;
+                    cacheTimer.Elapsed += new ElapsedEventHandler(TimerElapsedEvent);
+
+                    logger.Write("Cache timer set for " + hour + " hours and " + minutes + " minutes");
+
+                    opResult.StatusCode = OpStatusCode.Success;
+                    opResult.StatusText = "Cache start hour set to " + startHour;
+                    return opResult;
+                }                
+            }
+            opResult.StatusCode = OpStatusCode.BadRequest;
+            opResult.StatusText = "Error saving cache start hour setting!";
+            return opResult;
+        }
+
+        public OpResult ExecuteSettingsCommand(string command, string sParam)
+        {
+            OpResult opResult = new OpResult();
+            try
+                {
+                    //Check if set-hour param is present
+                    int value = GetServerSetting(sParam);
+                    if (value == -1)
+                    {
+                        return remoteCommands.ExecuteServerSettings(command, settings);
+                    }
+                    else if (sParam.Contains("set-build-hour:"))
+                    {
+                        return setCacheBuildTimer(value, getSettingsDoc());
+                    }
+                    else if (sParam.Contains("set-send-buffer:"))
+                    {
+                        return setSendBufferSize(value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    opResult.StatusCode = OpStatusCode.Exception;
+                    opResult.StatusText = "Value out of range: " + ex.Message;
+                }
+            return opResult;
+        }
+
+        /// <summary>
+        /// Checks to see if there is a settings parameter and
+        /// returns -1 if none
+        /// </summary>
+        public int GetServerSetting(string param)
+        {
+            if (param != null)
+            {
+                string setter = null;
+
+                if (param.Contains("set-build-hour:"))
+                {
+                    setter = "set-build-hour:";
+                }
+                else if (param.Contains("set-send-buffer:"))
+                {
+                    setter = "set-send-buffer:";
+                }
+
+                if (setter != null)
+                {
+                    string preString = param.Substring(param.IndexOf(setter) + setter.Length);
+                    string rawString = MusicCmd.trim_parameter(preString);
+                    int setting = Convert.ToInt32(rawString);
+
+                    if (param.Contains("set-build-hour:") && setting >= 0 && setting < 24)
+                    {
+                        return setting;
+                    }
+                    else if (param.Contains("set-send-buffer:") && setting > HttpSocketServer.MIN_SEND_BUFFER_SIZE)
+                    {
+                        return setting;
+                    }
+                    else
+                    {
+                        throw new Exception();
+                    }
+                }
+                return -1;
+            }
+            return -1;
         }
 
         /// <summary>
@@ -335,6 +461,8 @@ namespace VmcController.AddIn
            
             Interlocked.Increment(ref numConnectedSockets);
 
+            if (numConnectedSockets == maxConnections) logger.Write("Number of connected sockets: " + numConnectedSockets + " / " + maxConnections);
+
             // Loop back to post another accept op. Notice that we are NOT
             // passing the SAEA object here.
             StartAccept();
@@ -444,7 +572,7 @@ namespace VmcController.AddIn
                 int iStartPos = sBuffer.IndexOf("HTTP", 1);
 
                 // Get the HTTP text and version e.g. it will return "HTTP/1.1"
-                m_sHttpVersion = sBuffer.Substring(iStartPos, 8);
+                sHttpVersion = sBuffer.Substring(iStartPos, 8);
 
                 // Extract the Requested Type and Requested file/directory
                 String sRequest = sBuffer.Substring(5, iStartPos - 1 - 5);
@@ -507,7 +635,7 @@ namespace VmcController.AddIn
                 //the buffer or not. If it is larger than the buffer, then we will have
                 //to post more than one send operation. If it is less than or equal to the
                 //size of the send buffer, then we can accomplish it in one send op.                
-                if (token.sendBytesRemainingCount <= (receiveBufferSize + sendBufferSize))
+                if (token.sendBytesRemainingCount <= (receiveBufferSize + settings.send_buffer_size))
                 {
                     count = token.sendBytesRemainingCount;
                     receiveSendEventArgs.SetBuffer(token.sendBufferOffset, count);
@@ -520,7 +648,7 @@ namespace VmcController.AddIn
                     //We cannot try to set the buffer any larger than its size.
                     //So since receiveSendToken.sendBytesRemainingCount > BufferSize, we just
                     //set it to the maximum size, to send the most data possible.
-                    count = receiveBufferSize + sendBufferSize;
+                    count = receiveBufferSize + settings.send_buffer_size;
                     receiveSendEventArgs.SetBuffer(token.sendBufferOffset, count);
                     //Copy the bytes to the buffer associated with this SAEA object.
                     Buffer.BlockCopy(token.dataToSend, token.bytesSentAlreadyCount, receiveSendEventArgs.Buffer, token.sendBufferOffset, receiveBufferSize);                     
@@ -595,18 +723,24 @@ namespace VmcController.AddIn
                         doc.DocumentElement.AppendChild(elem);
                         doc.DocumentElement.LastChild.AppendChild(text);
                     }
-
                     //Save settings
                     doc.PreserveWhitespace = true;
                     doc.Save(AddInModule.DATA_DIR + "\\settings.xml");
+
+                    //Check for missing cache files
+                    if (!startNow)
+	                {
+                        startNow = !remoteCommands.ExecuteCacheCheck();   
+	                }                  
                 }
 
                 if (startNow)
                 {
                     Thread http_thread = new Thread(new ParameterizedThreadStart(CacheBuildThread));
+                    http_thread.IsBackground = true;
                     http_thread.SetApartmentState(ApartmentState.MTA);
                     http_thread.Start(doc);
-                }  
+                }
             }                                   
         }
 
@@ -614,65 +748,16 @@ namespace VmcController.AddIn
         {
             logger.Write("Cache update thread started");
             XmlDocument doc = (XmlDocument)o;
-            m_remoteCommands.ExecuteCacheBuild(doc, logger);
+            remoteCommands.ExecuteCacheBuild(doc, logger);
         }
         
         void StartSendRequest(SocketAsyncEventArgs e)
         {            
             Thread http_thread = new Thread(new ParameterizedThreadStart(StartSendRequestThread));
+            http_thread.IsBackground = false;
             http_thread.SetApartmentState(ApartmentState.STA);
             http_thread.Start(e);
-        }
-
-        public class LibraryStats
-        {
-            public int albums = 0;
-            public int album_artists = 0;
-            public int artists = 0;
-            public int genres = 0;
-            public int songs = 0;
-            public int playlists = 0;
-        }
-
-        private OpResult getLibraryStats()
-        {
-            OpResult opResult = new OpResult();
-            opResult.StatusCode = OpStatusCode.Json;
-
-            int[] list_codes = new int[] {MusicCmd.LIST_ALBUMS, MusicCmd.LIST_ALBUM_ARTISTS, MusicCmd.LIST_ARTISTS, MusicCmd.LIST_GENRES,
-                MusicCmd.LIST_DETAILS, MusicCmd.LIST_PLAYLISTS};
-
-            LibraryStats library_stats = new LibraryStats();
-            
-            foreach (int i in list_codes)
-            {
-                MusicCmd cmd = new MusicCmd(i);
-                cmd.setStatsOnly();
-                switch (i)
-                {
-                    case MusicCmd.LIST_ALBUMS:
-                        library_stats.albums = cmd.Execute("").ResultCount;
-                        break;
-                    case MusicCmd.LIST_ALBUM_ARTISTS:
-                        library_stats.album_artists = cmd.Execute("").ResultCount;
-                        break;
-                    case MusicCmd.LIST_ARTISTS:
-                        library_stats.artists = cmd.Execute("").ResultCount;
-                        break;
-                    case MusicCmd.LIST_GENRES:
-                        library_stats.genres = cmd.Execute("").ResultCount;
-                        break;
-                    case MusicCmd.LIST_DETAILS:
-                        library_stats.songs = cmd.Execute("").ResultCount;
-                        break;
-                    case MusicCmd.LIST_PLAYLISTS:
-                        library_stats.playlists = cmd.Execute("").ResultCount;
-                        break;
-                }
-            }
-            opResult.ContentText = JsonConvert.SerializeObject(library_stats, Newtonsoft.Json.Formatting.Indented);
-            return opResult;            
-        }
+        }                
 
         /// <summary>
         /// Handles the received commands of the m_httpServer control.
@@ -691,92 +776,79 @@ namespace VmcController.AddIn
             string sCommand = command[0];
             string sParam = (command.Length == 2 ? command[1] : string.Empty);
 
-            try
+            Thread http_thread = new Thread(new ParameterizedThreadStart(NewRequestThread));
+            http_thread.IsBackground = true;
+            http_thread.SetApartmentState(ApartmentState.MTA);
+
+            if (sCommand.Equals("music-list-playing") || sCommand.Equals("music-list-current") || sCommand.StartsWith("play") || sCommand.Equals("music-shuffle"))
             {
-                Thread http_thread = new Thread(new ParameterizedThreadStart(NewRequestThread));
-                http_thread.SetApartmentState(ApartmentState.MTA);
-
-                //Check if command for setting cache hour
-                if (sCommand.Equals("music-clear-cache") && MusicCmd.check_cache_command(sParam) != -1)
+                RemotedWindowsMediaPlayer remotedPlayer = null;
+                try
                 {
-                    XmlNode cacheStartHourNode = getSettingsDoc().DocumentElement.SelectSingleNode("cacheStartHour");
-                    if (cacheStartHourNode != null)
-                    {
-                        int cacheStartHour = MusicCmd.check_cache_command(sParam);
-                        setCacheBuildTimer(cacheStartHour);
+                    //Only allow one thread at a time to access remoted player
+                    waitHandle.WaitOne();
 
-                        token.opResult = new OpResult();
-                        token.opResult.StatusCode = OpStatusCode.Success;
-                        token.opResult.StatusText = "Cache start hour set to " + cacheStartHour;
-                    }
-                    else
-                    {
-                        token.opResult = new OpResult();
-                        token.opResult.StatusCode = OpStatusCode.BadRequest;
-                        token.opResult.StatusText = "cacheStartHour node not found in settings.xml!";
-                    }
-                }
-                else if (sCommand.Equals("music-list-playing") || sCommand.Equals("music-list-current") || sCommand.StartsWith("play") || 
-                    sCommand.Equals("music-shuffle"))
-                {
-                    RemotedWindowsMediaPlayer remotePlayer = new RemotedWindowsMediaPlayer();
-                    remotePlayer.CreateControl();
+                    remotedPlayer = new RemotedWindowsMediaPlayer();
+                    remotedPlayer.CreateControl();
 
+                    token.opResult = new OpResult();
                     if (sCommand.Equals("music-list-playing"))
                     {
                         if (sParam != null && sParam.Length != 0)
                         {
                             string sIndex = sParam.Substring(sParam.IndexOf("index:") + "index:".Length);
-                            if (remotePlayer.setNowPlaying(Int16.Parse(sIndex)))
+                            if (remotedPlayer.setNowPlaying(Int16.Parse(sIndex)))
                             {
-                                token.opResult = new OpResult();
                                 token.opResult.StatusCode = OpStatusCode.Success;
                                 token.opResult.StatusText = "Current media set to index " + sIndex;
                             }
                             else
                             {
-                                token.opResult = new OpResult();
                                 token.opResult.StatusCode = OpStatusCode.BadRequest;
                                 token.opResult.StatusText = "Current playback item not set";
                             }
                         }
                         else
                         {
-                            token.nowPlaying = new NowPlayingList(remotePlayer.getNowPlaying());
+                            token.opResult.StatusCode = OpStatusCode.Success;
+                            NowPlaying nowPlaying = new NowPlaying(remotedPlayer);
+                            token.opResult.ContentObject = nowPlaying;
                         }
                     }
                     else if (sCommand.StartsWith("play"))
                     {
                         //For playrate and playstate-get commands
-                        token.opResult = m_remoteCommands.Execute(remotePlayer, sCommand, sParam);
+                        token.opResult = remoteCommands.Execute(remotedPlayer, sCommand, sParam);
                     }
                     else if (sCommand.Equals("music-shuffle"))
                     {
-                        remotePlayer.setShuffleMode();
-                        token.opResult = new OpResult();
+                        remotedPlayer.setShuffleMode();
                         token.opResult.StatusCode = OpStatusCode.Success;
-                        token.opResult.StatusText = "Shuffle mode set";
+                        token.opResult.StatusText = "Shuffle mode set to true";
                     }
                     else
                     {
                         //"music-list-current" command
-                        token.currentMedia = new MediaItem(remotePlayer.getCurrentMediaItem());
-                        MediaPlayState playState = new MediaPlayState(remotePlayer.getPlayState());
-                        token.currentMedia.play_state = playState.getState();
-                    }
-
-                    if (remotePlayer != null)
-                    {
-                        remotePlayer.Dispose();
+                        token.opResult.StatusCode = OpStatusCode.Success;
+                        CurrentState state = new CurrentState(remotedPlayer);
+                        token.opResult.ContentObject = state;
                     }
                 }
-
-                http_thread.Start(e);                
+                catch (Exception c)
+                {
+                    logger.Write("Exception in StartSendRequestThread: " + c.Message);
+                    token.opResult.StatusCode = OpStatusCode.Exception;
+                    token.opResult.StatusText = c.Message;
+                }
+                finally
+                {
+                    if (remotedPlayer != null) remotedPlayer.Dispose();
+                    waitHandle.Set();
+                }                
             }
-            catch (COMException)
-            {                
-            }
-        }        
+            
+            http_thread.Start(e);
+        }      
 
         void NewRequestThread(Object o)
         {
@@ -787,7 +859,6 @@ namespace VmcController.AddIn
             string sCommand = "";
             string sParam = "";
             string sBody = "";
-            string sTempBody = "";            
             try
             {
                 // Show error for index
@@ -802,7 +873,6 @@ namespace VmcController.AddIn
                     string[] cmd_stack = req[0].Split(new char[] { '/' });
                     for (int idx = 0; idx < cmd_stack.Length; idx++)
                     {
-                        sTempBody = "";
                         string[] command = cmd_stack[idx].Split(new char[] { ' ' }, 2);
                         if (command.Length == 0)
                             return;
@@ -811,7 +881,7 @@ namespace VmcController.AddIn
 
                         if (sCommand.Equals("help", StringComparison.InvariantCultureIgnoreCase))
                         {
-                            opResult = m_remoteCommands.CommandListHTML(AddInModule.GetPortNumber(AddInModule.m_basePortNumber));
+                            opResult = remoteCommands.CommandListHTML(AddInModule.GetPortNumber(AddInModule.m_basePortNumber));
                         }
                         else if (sCommand.Equals("format", StringComparison.InvariantCultureIgnoreCase))
                         {
@@ -823,73 +893,69 @@ namespace VmcController.AddIn
                         {
                             opResult = token.opResult;
                         }
-                        else if (sCommand.Equals("music-list-stats"))
+                        else if (sCommand.Equals("server-settings"))
                         {
-                            opResult = getLibraryStats();
-                        }
-                        else
-                        {
-                            opResult = m_remoteCommands.Execute(sCommand, sParam, token.nowPlaying, token.currentMedia);
-                        }
-
-                        //If cache was cleared, start another build
-                        if (sCommand.Equals("music-clear-cache") && opResult.StatusCode == OpStatusCode.Ok)
+                            opResult = ExecuteSettingsCommand(sCommand, sParam);
+                        }     
+                        else if (sCommand.Equals("music-clear-cache"))
                         {
                             startCacheBuildNow();
-                        }
-
-                        sTempBody = opResult.ToString();
-
-                        if (sParam.Length == 0)
+                            opResult = new OpResult();
+                            opResult.StatusCode = OpStatusCode.Success;
+                            opResult.StatusText = "Cache cleared";
+                        }      
+                        else
                         {
-                            sParam = "<i>No parameters specified.</i>";
-                        }
-
-                        if (opResult.StatusCode != OpStatusCode.Json)
-                        {
-                            if (opResult.StatusCode != OpStatusCode.Ok && opResult.StatusCode != OpStatusCode.Success)
-                            {
-                                sTempBody = string.Format("<h1>ERROR<hr>Command: {0}<br>Params: {1}<br>Returned: {2} - {3}<hr>See <a href='help'>Help</a></h1>", sCommand, sParam, opResult.StatusCode, opResult.ToString());
-                            }
-                            else if (opResult.StatusCode != OpStatusCode.OkImage)
-                            {
-                                if (sTempBody.Length > 0)
-                                {
-                                    if (sTempBody.TrimStart()[0] != '<')
-                                    {
-                                        sTempBody = "<pre>" + sTempBody + "</pre>";
-                                    }
-                                }
-                                else
-                                {
-                                    sTempBody = string.Format("<h1>Ok<hr>Last Command: '{0}'<br>Params: {1}<br>Returned: {2}<hr>See <a href='help'>Help</a></h1>", sCommand, sParam, opResult.StatusCode);
-                                }
-                            }
-                            if (sBody.Length > 0)
-                            {
-                                sBody += "<HR>";
-                            }
-                            sBody += sTempBody; 
+                            opResult = remoteCommands.Execute(sCommand, sParam, settings);
                         }
                     }
                 }
 
                 //Get bytes to send to browser
-                if (opResult.StatusCode == OpStatusCode.Json)
+                if (opResult.isHelpFormat())
+                {
+                    string sTempBody = opResult.ToString();
+                    if (sParam.Length == 0)
+                    {
+                        sParam = "<i>No parameters specified.</i>";
+                    }
+                    if (opResult.StatusCode != OpStatusCode.Ok && opResult.StatusCode != OpStatusCode.Success)
+                    {
+                        sTempBody = string.Format("<h1>ERROR<hr>Command: {0}<br>Params: {1}<br>Returned: {2} - {3}<hr>See <a href='help'>Help</a></h1>", sCommand, sParam, opResult.StatusCode, opResult.ToString());
+                    }
+                    else if (opResult.StatusCode != OpStatusCode.OkImage)
+                    {
+                        if (sTempBody.Length > 0)
+                        {
+                            if (sTempBody.TrimStart()[0] != '<')
+                            {
+                                sTempBody = "<pre>" + sTempBody + "</pre>";
+                            }
+                        }
+                        else
+                        {
+                            sTempBody = string.Format("<h1>Ok<hr>Last Command: '{0}'<br>Params: {1}<br>Returned: {2}<hr>See <a href='help'>Help</a></h1>", sCommand, sParam, opResult.StatusCode);
+                        }
+                    }
+                    if (sBody.Length > 0)
+                    {
+                        sBody += "<HR>";
+                    }
+                    sBody += sTempBody;
+                    token.dataToSend = GetPageDataToSend(string.Format("{0}\r\n", sBody));
+                }
+                else if (opResult.StatusCode != OpStatusCode.OkImage)
                 {
                     token.dataToSend = GetPageJsonDataToSend(opResult.ToString());
                 }
-                else if (opResult.StatusCode == OpStatusCode.OkImage)
-                {
-                    token.dataToSend = GetImageDataToSend(opResult.ToString(), opResult.StatusText);
-                }
                 else
                 {
-                    token.dataToSend = GetPageDataToSend(string.Format("{0}\r\n", sBody));
-                }                
+                    token.dataToSend = GetImageDataToSend(opResult);
+                }               
             }
             catch (Exception ex)
             {
+                logger.Write("Exception in NewRequestThread: " + ex.Message);
                 token.dataToSend = GetPageDataToSend(string.Format("<html><body>EXCEPTION: {0}<hr></body></html>", ex.Message));
                 Trace.TraceError(ex.ToString());
             }
@@ -909,7 +975,7 @@ namespace VmcController.AddIn
         public Byte[] GetPageDataToSend(string text)
         {
             byte[] stringData = Encoding.UTF8.GetBytes(text);
-            byte[] headerData = GetHeaderBytes(m_sHttpVersion, "text/html;charset=utf-8", stringData.Length, " 200 OK");
+            byte[] headerData = GetHeaderBytes(sHttpVersion, "text/html;charset=utf-8", stringData.Length, " 200 OK");
             byte[] totalData = new byte[stringData.Length + headerData.Length];
             Buffer.BlockCopy(headerData, 0, totalData, 0, headerData.Length);
             Buffer.BlockCopy(stringData, 0, totalData, headerData.Length, stringData.Length);
@@ -919,7 +985,7 @@ namespace VmcController.AddIn
         public Byte[] GetPageJsonDataToSend(string text)
         {
             byte[] stringData = Encoding.UTF8.GetBytes(text);
-            byte[] headerData = GetHeaderBytes(m_sHttpVersion, "application/json", stringData.Length, " 200 OK");
+            byte[] headerData = GetHeaderBytes(sHttpVersion, "application/json", stringData.Length, " 200 OK");
             byte[] totalData = new byte[stringData.Length + headerData.Length];
             Buffer.BlockCopy(headerData, 0, totalData, 0, headerData.Length);
             Buffer.BlockCopy(stringData, 0, totalData, headerData.Length, stringData.Length);
@@ -932,11 +998,12 @@ namespace VmcController.AddIn
         /// <param name="text">The text.</param>
         /// <param name="mime_ext">The mime extention.</param>
         /// <param name="httpSocket">Socket reference</param>
-        public Byte[] GetImageDataToSend(string text, string mime_ext)
+        public Byte[] GetImageDataToSend(OpResult opResult)
         {
-            byte[] imageData = Convert.FromBase64String(text);
+            string mime_ext = opResult.StatusText;
+            byte[] imageData = opResult.ImageData;
             if (mime_ext == "jpg") mime_ext = "jpeg";
-            byte[] headerData = GetHeaderBytes(m_sHttpVersion, "image/" + mime_ext, imageData.Length, " 200 OK");
+            byte[] headerData = GetHeaderBytes(sHttpVersion, "image/" + mime_ext, imageData.Length, " 200 OK");
             byte[] totalData = new byte[imageData.Length + headerData.Length];
             Buffer.BlockCopy(headerData, 0, totalData, 0, headerData.Length);
             Buffer.BlockCopy(imageData, 0, totalData, headerData.Length, imageData.Length);
@@ -1004,6 +1071,8 @@ namespace VmcController.AddIn
             //connected to the server, for testing
             Interlocked.Decrement(ref numConnectedSockets);
 
+            if (numConnectedSockets + 1 == maxConnections) logger.Write("Number of connected sockets: " + numConnectedSockets + " / " + maxConnections);
+
             //Release Semaphore so that its connection counter will be decremented.
             //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
             //or you can run into problems.
@@ -1012,6 +1081,8 @@ namespace VmcController.AddIn
 
         internal void CleanUpOnExit()
         {
+            logger.Write("Shutting down server...");
+
             DisposeAllSaeaObjects();
         }
 
@@ -1028,6 +1099,34 @@ namespace VmcController.AddIn
                 eventArgs = poolOfRecSendEventArgs.Pop();
                 eventArgs.Dispose();
             }
-        }       
+        }
+
+        #region IDisposable Members
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                // Need to dispose managed resources if being called manually
+                if (disposing)
+                {
+                    if (remoteCommands != null) remoteCommands.Dispose();
+                    if (maxNumberAcceptedClients != null) maxNumberAcceptedClients.Close();
+                    if (waitHandle != null) waitHandle.Close();
+                    if (listenSocket != null) listenSocket.Close();
+                    if (cacheTimer != null) cacheTimer.Dispose();
+                    if (logger != null) logger.Dispose();
+                    _disposed = true;
+                }
+            }
+        }
+
+        #endregion
 	}
 }

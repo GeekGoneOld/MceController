@@ -67,7 +67,7 @@ namespace VmcController.AddIn.Commands
                     opResult.StatusCode = OpStatusCode.Ok;
                     foreach (XmlNode command in commands)
                     {
-                        innerOp = rc.Execute(command.Attributes.GetNamedItem("command").Value, command.InnerText);
+                        innerOp = rc.Execute(command.Attributes.GetNamedItem("command").Value, command.InnerText, null);
                         opResult.StatusText += innerOp.StatusCode.ToString() + ": " + innerOp.StatusText + "<br>";
                     }
                 }

@@ -17,13 +17,15 @@
 using System;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
+using VmcController.AddIn.Metadata;
+using System.Collections.Generic;
 
 namespace VmcController.AddIn.Commands
 {
 	/// <summary>
 	/// Summary description for Position command.
 	/// </summary>
-	public class PositionCmd: ICommand
+	public class PositionCmd: IExperienceCommand
 	{
         private bool m_set = true;
 
@@ -31,7 +33,8 @@ namespace VmcController.AddIn.Commands
         {
             m_set = bSet;
         }
-        #region ICommand Members
+
+        #region ExperienceICommand Members
 
         /// <summary>
         /// Shows the syntax.
@@ -51,32 +54,34 @@ namespace VmcController.AddIn.Commands
         /// <param name="param">The param.</param>
         /// <param name="result">The result.</param>
         /// <returns></returns>
-        public OpResult Execute(string param)
+        public OpResult ExecuteMediaExperience(string param)
         {
             OpResult opResult = new OpResult();
             opResult.StatusCode = OpStatusCode.Success;
             try
             {
-                if (AddInModule.getMediaExperience() == null)
+                if (MediaExperienceWrapper.Instance == null)
                 {
                     opResult.StatusCode = OpStatusCode.BadRequest;
-                    opResult.AppendFormat("No media playing");
+                    opResult.StatusText = "No media playing";
                 }
                 else if (m_set)
                 {
                     TimeSpan position = TimeSpan.FromSeconds(double.Parse(param));
-                    AddInHost.Current.MediaCenterEnvironment.MediaExperience.Transport.Position = position;
+                    MediaExperienceWrapper.Instance.Transport.Position = position;
                 }
                 else
                 {
-                    TimeSpan position = AddInHost.Current.MediaCenterEnvironment.MediaExperience.Transport.Position;
-                    opResult.AppendFormat("Position={0}", position);
+                    PositionObject pObject = new PositionObject();
+                    pObject.position = MediaExperienceWrapper.Instance.Transport.Position;
+                    opResult.StatusCode = OpStatusCode.Success;
+                    opResult.ContentObject = pObject;
                 }
             }
             catch (Exception ex)
             {
                 opResult.StatusCode = OpStatusCode.Exception;
-                opResult.AppendFormat(ex.Message);
+                opResult.StatusText = ex.Message;
             }
             return opResult;
         }

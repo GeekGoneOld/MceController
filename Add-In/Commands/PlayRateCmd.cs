@@ -15,7 +15,9 @@
  * 
  */
 using System;
+using System.Collections.Generic;
 using System.Text;
+using VmcController.AddIn.Metadata;
 using WMPLib;
 
 namespace VmcController.AddIn.Commands
@@ -23,7 +25,7 @@ namespace VmcController.AddIn.Commands
 	/// <summary>
 	/// Summary description for PlayRate command.
 	/// </summary>
-	public class PlayRateCmd : WmpICommand
+	public class PlayRateCmd : IWmpCommand
 	{
         private bool m_set = true;
 
@@ -32,7 +34,7 @@ namespace VmcController.AddIn.Commands
             m_set = bSet;
         }
 
-        #region WmpICommand Members
+        #region IWmpCommand Members
 
         /// <summary>
         /// Shows the syntax.
@@ -56,7 +58,7 @@ namespace VmcController.AddIn.Commands
                 foreach (string value in Enum.GetNames(typeof(WMPPlayState)))
                 {
                     string modValue = value.Remove(0, 5);
-                    sb.AppendFormat("{0}|", modValue);
+                    if (!modValue.Equals("Ready")) sb.AppendFormat("{0}|", modValue);
                 }
                 sb.Remove(sb.Length - 1, 1);
                 s = "- returns the play state (one of " + sb.ToString() + ")";
@@ -64,37 +66,19 @@ namespace VmcController.AddIn.Commands
             return s;
         }
 
-        /// <summary>
-        /// Executes the specified param.
-        /// </summary>
-        /// <param name="param">The param.</param>
-        /// <param name="result">The result.</param>
-        /// <returns></returns>
-        public OpResult Execute(string param)
-        {
-            throw new NotImplementedException();
-        }
-
         public OpResult Execute(RemotedWindowsMediaPlayer remotePlayer, string param)
         {
             OpResult opResult = new OpResult();
             try
             {
-                if (remotePlayer.getPlayState() == WMPPlayState.wmppsUndefined)
+                if (MediaExperienceWrapper.Instance == null || remotePlayer.getPlayState() == WMPPlayState.wmppsUndefined)
                 {
-                    if (m_set)
-                    {
-                        opResult.StatusCode = OpStatusCode.Ok;
-                        opResult.AppendFormat("No media playing");
-                    }
-                    else
-                    {
-                        opResult.StatusCode = OpStatusCode.BadRequest;
-                        opResult.AppendFormat("No media playing");
-                    }
+                    opResult.StatusCode = OpStatusCode.BadRequest;
+                    opResult.StatusText = "No media playing";
                 }
                 else if (m_set)
                 {
+                    if (param.Equals("")) throw new Exception("Not a supported playrate!");
                     PlayRateEnum playRate = (PlayRateEnum)Enum.Parse(typeof(PlayRateEnum), param, true);
                     switch (playRate)
                     {
@@ -133,21 +117,25 @@ namespace VmcController.AddIn.Commands
                         case PlayRateEnum.SkipForward:
                             remotePlayer.getPlayerControls().next();
                             break;
+                        default:
+                            throw new Exception("Not a supported playrate!");
                     }
                     opResult.StatusCode = OpStatusCode.Success;
                 }
                 else
                 {
                     WMPPlayState state = remotePlayer.getPlayState();
-                    string value = Enum.GetName(typeof(WMPPlayState), state).Remove(0, 5);
-                    opResult.AppendFormat("PlayState={0}", value);
+                    //string value = Enum.GetName(typeof(WMPPlayState), state).Remove(0, 5);
+                    PlayStateObject pObject = new PlayStateObject();
+                    pObject.play_state = CurrentState.getTruncatedPlayState(remotePlayer.getPlayState());
                     opResult.StatusCode = OpStatusCode.Success;
+                    opResult.ContentObject = pObject;
                 }                                
             }
             catch (Exception ex)
             {
                 opResult.StatusCode = OpStatusCode.Exception;
-                opResult.AppendFormat(ex.Message);
+                opResult.StatusText = ex.Message;
             }
             return opResult;            
         }
