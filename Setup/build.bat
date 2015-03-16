@@ -16,9 +16,9 @@ set ProgramFilesPath=%ProgramFiles%
 :startInstall
 
 SET WIX_BUILD_LOCATION=%ProgramFilesPath%\WiX Toolset v3.8\bin
-SET SRC_PATH=C:\Users\The Lovebirds\Documents\GitHub\MceController\Setup x64
+SET SRC_PATH=C:\Users\The Lovebirds\Documents\GitHub\MceController\Setup
 SET INTERMEDIATE_PATH=%SRC_PATH%\obj\%BUILD_TYPE%
-SET OUTPUTNAME=%SRC_PATH%\%BUILD_TYPE%\WMCController64.msi
+SET OUTPUTNAME=%SRC_PATH%\%BUILD_TYPE%\WMCController.msi
 
 REM Cleanup leftover intermediate files
 
@@ -30,6 +30,7 @@ REM Build the MSI for the setup package
 pushd "%SRC_PATH%"
 
 set wixext=-ext "%WIX_BUILD_LOCATION%\WixUIExtension.dll" -ext "%WIX_BUILD_LOCATION%\WixUtilExtension.dll" -ext "%WIX_BUILD_LOCATION%\WixFirewallExtension.dll"
+
 
 "%WIX_BUILD_LOCATION%\candle.exe" "%SRC_PATH%\Setup.wxs" -dBuildType=%BUILD_TYPE% %wixext% -out "%INTERMEDIATE_PATH%\MCNC.wixobj"
 "%WIX_BUILD_LOCATION%\light.exe" "%INTERMEDIATE_PATH%\MCNC.wixobj" %wixext% -cultures:en-US -loc "Setup_en-us.wxl" -out "%OUTPUTNAME%"

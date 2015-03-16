@@ -1,19 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio Express 2012 for Windows Desktop
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VmcController.Add-In", "Add-In\VmcController.Add-In.csproj", "{E462FADD-D3B3-436A-8966-E8D6289AAB15}"
-EndProject
-Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "EmotePlugin_32-bit", "Setup\EmotePlugin_32-bit.wixproj", "{6489C4BA-F69C-47B2-A729-64B369C67B7B}"
-	ProjectSection(ProjectDependencies) = postProject
-		{E462FADD-D3B3-436A-8966-E8D6289AAB15} = {E462FADD-D3B3-436A-8966-E8D6289AAB15}
-		{0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD} = {0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD}
-	EndProjectSection
-EndProject
-Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "EmotePlugin_64-bit", "Setup x64\EmotePlugin_64-bit.wixproj", "{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}"
-	ProjectSection(ProjectDependencies) = postProject
-		{E462FADD-D3B3-436A-8966-E8D6289AAB15} = {E462FADD-D3B3-436A-8966-E8D6289AAB15}
-		{0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD} = {0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD}
-	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VmcController.Status", "Status\VmcController.Status.csproj", "{0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD}"
 EndProject
@@ -49,34 +37,6 @@ Global
 		{E462FADD-D3B3-436A-8966-E8D6289AAB15}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{E462FADD-D3B3-436A-8966-E8D6289AAB15}.Release|x64.ActiveCfg = Release|Any CPU
 		{E462FADD-D3B3-436A-8966-E8D6289AAB15}.Release|x86.ActiveCfg = Release|Any CPU
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Debug|Any CPU.ActiveCfg = Debug|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Debug|Mixed Platforms.Build.0 = Debug|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Debug|x64.ActiveCfg = Debug|x64
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Debug|x64.Build.0 = Debug|x64
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Debug|x86.ActiveCfg = Debug|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Debug|x86.Build.0 = Debug|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Release|Any CPU.ActiveCfg = Release|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Release|Mixed Platforms.ActiveCfg = Release|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Release|Mixed Platforms.Build.0 = Release|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Release|x64.ActiveCfg = Release|x64
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Release|x64.Build.0 = Release|x64
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Release|x86.ActiveCfg = Release|x86
-		{6489C4BA-F69C-47B2-A729-64B369C67B7B}.Release|x86.Build.0 = Release|x86
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Debug|Any CPU.ActiveCfg = Debug|x86
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Debug|Mixed Platforms.ActiveCfg = Debug|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Debug|Mixed Platforms.Build.0 = Debug|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Debug|x64.ActiveCfg = Debug|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Debug|x64.Build.0 = Debug|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Debug|x86.ActiveCfg = Debug|x86
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Debug|x86.Build.0 = Debug|x86
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Release|Any CPU.ActiveCfg = Release|x86
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Release|Mixed Platforms.ActiveCfg = Release|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Release|Mixed Platforms.Build.0 = Release|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Release|x64.ActiveCfg = Release|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Release|x64.Build.0 = Release|x64
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Release|x86.ActiveCfg = Release|x86
-		{8C3C003A-BFD5-4AEE-91BE-6AF0690190AA}.Release|x86.Build.0 = Release|x86
 		{0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0B9E6DE4-EC4E-4317-823E-266A4A8C5FCD}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
