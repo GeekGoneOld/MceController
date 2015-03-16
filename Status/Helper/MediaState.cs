@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Diagnostics;
+using System.Globalization;
+using VmcController.Status;
 
 namespace VmcController.MceState {
 	/// <summary>
@@ -148,7 +150,10 @@ namespace VmcController.MceState {
 		/// <param name="tag">The tag.</param>
 		/// <param name="property">The property.</param>
 		public static void UpdateState(MEDIASTATUSPROPERTYTAG tag, object property) {
-			if (property == null) {
+            var sb = new StringBuilder();
+            
+            if (property == null)
+            {
 				return;
 			}
 
@@ -165,6 +170,7 @@ namespace VmcController.MceState {
 
 					//  Current Navigation Page
 				case MEDIASTATUSPROPERTYTAG.FS_DVD:
+                case MEDIASTATUSPROPERTYTAG.FS_Extensibility:
 				case MEDIASTATUSPROPERTYTAG.FS_Guide:
 				case MEDIASTATUSPROPERTYTAG.FS_Home:
 				case MEDIASTATUSPROPERTYTAG.FS_Music:
@@ -176,6 +182,9 @@ namespace VmcController.MceState {
 				case MEDIASTATUSPROPERTYTAG.FS_Videos:
 					if ((bool) property == true) {
 						m_page = tag;
+		    			Sink.SocketServer.SendMessage(
+			    			string.Format(CultureInfo.InvariantCulture, "m_page={0}\r\n", tag)
+                        );
 					}
 					break;
 
@@ -194,6 +203,9 @@ namespace VmcController.MceState {
 				case MEDIASTATUSPROPERTYTAG.SlowMotion3:
 					if ((bool) property == true) {
 						m_playRate = tag;
+		    			Sink.SocketServer.SendMessage(
+			    			string.Format(CultureInfo.InvariantCulture, "m_playRate={0}\r\n", tag)
+                        );
 					}
 					break;
 
@@ -205,8 +217,32 @@ namespace VmcController.MceState {
 				case MEDIASTATUSPROPERTYTAG.CD:
 				case MEDIASTATUSPROPERTYTAG.DVD:
 					if ((bool) property == true) {
-						m_metaData.Clear();
+                        foreach (KeyValuePair<string, object> item in MediaState.MetaData) {
+                            switch (item.Key) {
+                                case "ArtistName":
+                                case "CurrentPicture":
+                                case "MediaName":
+                                case "ParentalAdvisoryRating":
+                                case "RadioFrequency":
+                                case "TrackName":
+                                    sb.AppendFormat("{0}={1}\r\n", item.Key, "");
+                                    break;
+                                case "MediaTime":
+                                case "TitleNumber":
+                                case "TotalTracks":
+                                case "TrackDuration":
+                                case "TrackNumber":
+                                case "TrackTime":
+                                    sb.AppendFormat("{0}={1}\r\n", item.Key, 0);
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        m_metaData.Clear();
 						m_mediaMode = tag;
+                        sb.AppendFormat(string.Format(CultureInfo.InvariantCulture, "m_mediaMode={0}\r\n", tag));
+                        Sink.SocketServer.SendMessage(sb.ToString());
 					}
 					break;
 

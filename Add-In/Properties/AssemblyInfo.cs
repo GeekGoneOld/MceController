@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Media Center Add-In")]
-[assembly: AssemblyDescription("Emote Media Center Plugin for Windows 7 & 8")]
+[assembly: AssemblyTitle("WMCController")]
+[assembly: AssemblyDescription("Media Center Add-In to control and monitor over IP")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("dinobud")]
-[assembly: AssemblyProduct("Emote Media Center Plugin")]
+[assembly: AssemblyCompany("")]
+[assembly: AssemblyProduct("WMCController")]
 [assembly: AssemblyCopyright("Copyright ©2007 Jonathan Bradshaw, Skip Mercier")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -31,4 +31,6 @@ using System.Runtime.InteropServices;
 //
 // You can specify all the values or you can default the Revision and Build Numbers 
 // by using the '*' as shown below:
+// [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.6.0.0")]
+[assembly: AssemblyFileVersion("1.6.1.0")]

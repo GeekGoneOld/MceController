@@ -7,7 +7,7 @@ Copyright © 2013, Skip Mercier
 All Rights Reserved.
 
 
-The Emote for Windows Media Center Plugin is a derivation of the MceController project on Github, which is a fork of the original project on Codeplex. Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+The WMCController Media Center Add-In is a derivation of the MceController project on Github, which is a fork of the original project on Codeplex. Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
 * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
 

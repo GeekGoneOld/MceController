@@ -80,11 +80,13 @@ namespace VmcController.AddIn
             m_commands.Add("button-dvdaudio", new SendKeyCmd('A', true, true, false));
             m_commands.Add("button-dvdsubtitle", new SendKeyCmd('U', true, true, false));
             m_commands.Add("button-cc", new SendKeyCmd('C', true, true, false));
+            m_commands.Add("button-mute", new SendKeyCmd(0x77));
+            m_commands.Add("button-space", new SendKeyCmd(0x20));
             m_commands.Add("button-pause", new SendKeyCmd('P', false, true, false));
             m_commands.Add("button-play", new SendKeyCmd('P', true, true, false));
             m_commands.Add("button-stop", new SendKeyCmd('S', true, true, false));
-            m_commands.Add("button-skipback", new SendKeyCmd('B', false, true, false));
-            m_commands.Add("button-skipfwd", new SendKeyCmd('F', false, true, false));
+            m_commands.Add("button-skipback", new SkipCmd(false));
+            m_commands.Add("button-skipfwd", new SkipCmd(true));
             m_commands.Add("button-rew", new SendKeyCmd('B', true, true, false));
             m_commands.Add("button-fwd", new SendKeyCmd('F', true, true, false));
             m_commands.Add("button-zoom", new SendKeyCmd('Z', true, true, false));
@@ -124,9 +126,11 @@ namespace VmcController.AddIn
             m_commands.Add("playstate", new PlayRateCmd(false));
             m_commands.Add("position", new PositionCmd(true));
             m_commands.Add("position-get", new PositionCmd(false));
+            m_commands.Add("media-info", new MediaInfoCmd());
 
             m_commands.Add("=== Environment Commands: ==========", null);
-            m_commands.Add("version", new VersionInfoCmd());
+            m_commands.Add("mc-version", new VersionInfoCmd());
+            m_commands.Add("addin-version", new VersionInfoPluginCmd());
             m_commands.Add("capabilities", new CapabilitiesCmd());
             m_commands.Add("changer-load", new ChangerCmd());
 

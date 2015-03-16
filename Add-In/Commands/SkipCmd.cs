@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Skip Mercier
+ * Copyright (c) 2007 Jonathan Bradshaw
  * 
  * This software is provided 'as-is', without any express or implied warranty. 
  * In no event will the authors be held liable for any damages arising from the use of this software.
@@ -17,19 +17,24 @@
 using System;
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
-using Microsoft.MediaCenter.UI;
-using System.IO;
-using System.Reflection;
-using System.Diagnostics;
+using VmcController.AddIn.Metadata;
+using System.Collections.Generic;
 
 namespace VmcController.AddIn.Commands
 {
 	/// <summary>
-	/// Summary description for FullScreen command.
+	/// Summary description for Skip command.
 	/// </summary>
-    public class VersionInfoPluginCmd: ICommand
+	public class SkipCmd: IExperienceCommand
 	{
-        #region ICommand Members
+        private bool direction_fwd = true;
+
+        public SkipCmd(bool dir_fwd)
+        {
+            direction_fwd = dir_fwd;
+        }
+
+        #region ExperienceICommand Members
 
         /// <summary>
         /// Shows the syntax.
@@ -37,7 +42,7 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public string ShowSyntax()
         {
-            return "- returns the version of the addin";
+            return "- sends command to application";
         }
 
         /// <summary>
@@ -46,19 +51,25 @@ namespace VmcController.AddIn.Commands
         /// <param name="param">The param.</param>
         /// <param name="result">The result.</param>
         /// <returns></returns>
-        public OpResult Execute(string param)
+        public OpResult ExecuteMediaExperience(string param)
         {
             OpResult opResult = new OpResult();
+            opResult.StatusCode = OpStatusCode.Success;
             try
             {
-                Assembly assembly = Assembly.GetExecutingAssembly();
-                FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
-                string version = fileVersionInfo.ProductVersion;
-
-                VersionPluginObject vObject = new VersionPluginObject();
-                vObject.version_addin = version + " (" + AddInHost.Current.MediaCenterEnvironment.CpuClass + ")";
-                opResult.StatusCode = OpStatusCode.Success;
-                opResult.ContentObject = vObject;
+                if (MediaExperienceWrapper.Instance == null)
+                {
+                    opResult.StatusCode = OpStatusCode.BadRequest;
+                    opResult.StatusText = "No media playing";
+                }
+                else if (direction_fwd)
+                {
+                    MediaExperienceWrapper.Instance.Transport.SkipForward();
+                }
+                else
+                {
+                    MediaExperienceWrapper.Instance.Transport.SkipBack();
+                }
             }
             catch (Exception ex)
             {
@@ -66,11 +77,6 @@ namespace VmcController.AddIn.Commands
                 opResult.StatusText = ex.Message;
             }
             return opResult;
-        }
-
-        class VersionPluginObject : OpResultObject
-        {
-            public string version_addin = "";
         }
 
         #endregion

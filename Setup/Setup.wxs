@@ -1,5 +1,5 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
-<?define Property_ProductVersion = "1.6.0.0" ?>
+<?xml version="1.0" encoding="UTF-8"?>
+<?define Property_ProductVersion = "1.6.1.0" ?>
 <?define Property_ProductCode = "03c8cf6f-a5dc-41b7-b475-6733c69ea165" ?>
 <?define Property_UpgradeCode = "e97b6ad4-5870-442F-8837-aa2ce19b1b31" ?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
@@ -125,7 +125,7 @@
 			<Component Id="ExtenderRegistryEntries"
 								 Guid="5cd384e8-bae9-474d-ae16-ee54a1e3f119" >
 				<RegistryKey Root="HKLM"
-										 Key="Software\Microsoft\Windows\CurrentVersion\MediaCenter\Service"
+										 Key="Software\Microsoft\Windows\CurrentVersion\Media Center\Service"
 										 Action="create">
 					<RegistryValue Type="integer"
 												 Name="AlwaysUseFPD"
@@ -150,7 +150,7 @@
 				<File Id="MediaSink_dll"
 							Name="VmcController.Status.dll"
 							KeyPath="yes"
-							Source="..\\Status\bin\Release\VmcController.Status.dll"
+							Source="..\Status\bin\Release\VmcController.Status.dll"
 							Checksum="yes"
 							Vital="yes"
 							Assembly=".net" />
@@ -186,7 +186,7 @@
 				<File Id="Interop_WMPLib.dll"
 							Name="Interop.WMPLib.dll"
 							KeyPath="yes"
-							Source="..\Add-In\bin\Release\Interop.WMPLib.dll"
+							Source="..\Binaries\Interop.WMPLib.dll"
 							Checksum="yes"
 							Vital="yes"
 							Assembly=".net"/>

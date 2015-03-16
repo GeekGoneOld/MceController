@@ -30,6 +30,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml;
+using System.IO;
 
 using Microsoft.MediaCenter;
 using Microsoft.MediaCenter.Hosting;
@@ -86,6 +87,11 @@ namespace VmcController.AddIn
             _disposed = false;
 
             needs_cleanup = true;
+
+            if (!Directory.Exists(AddInModule.DATA_DIR))
+            {
+                Directory.CreateDirectory(AddInModule.DATA_DIR);
+            }
 
             logger = new Logger("Add-In", false);
 

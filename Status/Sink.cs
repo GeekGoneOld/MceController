@@ -98,14 +98,17 @@ namespace VmcController.Status {
 					sb.AppendFormat("Mute={0}\r\n", MediaState.Mute);
 				}
 				if (MediaState.Page != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-					sb.AppendFormat("{0}=True\r\n", MediaState.Page);
-				}
+                    sb.AppendFormat("{0}=True\r\n", MediaState.Page);
+                    sb.AppendFormat("m_page={0}\r\n", MediaState.Page);
+                }
 				if (MediaState.MediaMode != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-					sb.AppendFormat("{0}=True\r\n", MediaState.MediaMode);
-				}
+                    sb.AppendFormat("{0}=True\r\n", MediaState.MediaMode);
+                    sb.AppendFormat("m_mediaMode={0}\r\n", MediaState.MediaMode);
+                }
 				if (MediaState.PlayRate != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-					sb.AppendFormat("{0}=True\r\n", MediaState.PlayRate);
-				}
+                    sb.AppendFormat("{0}=True\r\n", MediaState.PlayRate);
+                    sb.AppendFormat("m_playRate={0}\r\n", MediaState.PlayRate);
+                }
 				foreach (KeyValuePair<string, object> item in MediaState.MetaData)
 					sb.AppendFormat("{0}={1}\r\n", item.Key, item.Value);
 

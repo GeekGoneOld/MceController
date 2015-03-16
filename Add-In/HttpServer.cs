@@ -123,10 +123,6 @@ namespace VmcController.AddIn
         {
             try
             {
-                if (!Directory.Exists(AddInModule.DATA_DIR))
-                {
-                    Directory.CreateDirectory(AddInModule.DATA_DIR);
-                }
                 XmlDocument doc = new XmlDocument();
                 if (System.IO.File.Exists(AddInModule.DATA_DIR + "\\settings.xml"))
                 {

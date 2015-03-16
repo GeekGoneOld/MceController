@@ -17,6 +17,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
+using Microsoft.VisualBasic;
 
 namespace VmcController.AddIn.Commands
 {
@@ -100,7 +101,7 @@ namespace VmcController.AddIn.Commands
 
             try
             {
-                if (!GetWindowHandleWrapper())
+                if (!GetWindowToForeground())
                 {
                     opResult.StatusCode = OpStatusCode.BadRequest;
                     return opResult;
@@ -158,18 +159,17 @@ namespace VmcController.AddIn.Commands
         /// Helper method to get the window handle for the main MCE shell in our session
         /// </summary>
         /// <returns></returns>
-        private static bool GetWindowHandleWrapper()
+        private static bool GetWindowToForeground()
         {
-            const long TIMEOUT = 500; // 500 milliseconds
-            DateTime startTime = DateTime.Now;
+            int PID;
 
-            while (!NativeMethods.SetForegroundWindow(GetWindowHandle()))
+            PID = GetPID();
+            if (PID == 0)
             {
-                if ((DateTime.Now - startTime).TotalMilliseconds > TIMEOUT)
-                {
                     return false;
-                }
             }
+
+            Interaction.AppActivate(PID);
             return true;
         }
 
@@ -177,9 +177,9 @@ namespace VmcController.AddIn.Commands
         /// Helper method to get the window handle for the main MCE shell in our session
         /// </summary>
         /// <returns></returns>
-        private static IntPtr GetWindowHandle()
+        private static int GetPID()
         {
-            IntPtr hwnd = IntPtr.Zero;
+            int PID = 0;
             int mySession;
 
             using (Process currentProcess = Process.GetCurrentProcess())
@@ -188,10 +188,19 @@ namespace VmcController.AddIn.Commands
             foreach (Process p in Process.GetProcessesByName("ehshell"))
             {
                 if (p.SessionId == mySession)
-                    hwnd = p.MainWindowHandle;
+                {
+                    if (NativeMethods.IsIconic(p.MainWindowHandle))
+                    {
+                        NativeMethods.ShowWindow(p.MainWindowHandle, NativeMethods.SW_RESTORE);
+                    }
+                    else
+                    {
+                        PID = p.Id;
+                    }
+                }
                 p.Dispose();
             }
-            return hwnd;
+            return PID;
         }
 
         #region Win32 Helpers
@@ -339,6 +348,20 @@ namespace VmcController.AddIn.Commands
             // Activate an application window.
             [DllImport("user32.dll")]
             public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+            // Show a window in a given visibility (maximize, minimize, restore etc.)
+            [DllImport("user32.dll", CharSet = CharSet.Auto)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+            public const int SW_MAXIMIZE = 3;
+            public const int SW_RESTORE = 9;
+
+            // Check if a window is minimized
+            [DllImport("user32.dll", CharSet = CharSet.Auto)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool IsIconic(IntPtr hWnd);
+
         }
         #endregion
     }

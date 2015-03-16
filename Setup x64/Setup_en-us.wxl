@@ -5,19 +5,19 @@
   <String Id="LaunchCondition_LaterVersion">A later version of [ProductName] is already installed.</String>
   <String Id="LaunchCondition_WrongOSVersion">[ProductName] is designed for Windows 7/8 Media Center only or you don't have Windows Media Center.</String>
 
-  <String Id="Property_ArpHelpLink">https://play.google.com/store/apps/details?id=com.dinobud.Emote</String>
-  <String Id="Property_ArpUrlInfoAbout">https://sites.google.com/site/emoteforandroid/</String>
+  <String Id="Property_ArpHelpLink">http://https://github.com/gjniewenhuijse/MceController</String>
+  <String Id="Property_ArpUrlInfoAbout">http://https://github.com/gjniewenhuijse/MceController</String>
   <String Id="Property_ProductLanguage">1033</String>
-  <String Id="Property_ProductName">Emote for Windows Media Center Plugin</String>
-  <String Id="Property_CompanyName">dinobud</String>
+  <String Id="Property_ProductName">WMCController Media Center Streaming Status</String>
+  <String Id="Property_CompanyName">WMCController Team</String>
 
-  <String Id="Package_Description">Emote for Windows Media Center Plugin</String>
-  <String Id="Package_Comments">Control your Media Center via your Android phone using Emote!</String>
+  <String Id="Package_Description">Media Center tool for streaming status over IP</String>
+  <String Id="Package_Comments">Monitor Media Center and extenders over IP stream</String>
 
-  <String Id="Z_Shortcut_Title">EWMCP</String>
-  <String Id="Z_Shortcut_Description">EWMCP</String>
+  <String Id="Z_Shortcut_Title">WMCController Status</String>
+  <String Id="Z_Shortcut_Description">Media Center tool</String>
 
-  <String Id="DownloadManager_DisplayName">Emote for Windows Media Center Plugin</String>
-  <String Id="DownloadManager_Description">Emote for Windows Media Center Plugin</String>
+  <String Id="DownloadManager_DisplayName">WMCController Status</String>
+  <String Id="DownloadManager_Description">Media Center tool for streaming status over IP</String>
 
 </WixLocalization>
