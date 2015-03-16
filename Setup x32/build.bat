@@ -16,9 +16,9 @@ set ProgramFilesPath=%ProgramFiles%
 :startInstall
 
 SET WIX_BUILD_LOCATION=%ProgramFilesPath%\WiX Toolset v3.8\bin
-SET SRC_PATH=C:\Users\The Lovebirds\Documents\GitHub\MceController\Setup
+SET SRC_PATH=C:\Users\The Lovebirds\Documents\GitHub\MceController\Setup x32
 SET INTERMEDIATE_PATH=%SRC_PATH%\obj\%BUILD_TYPE%
-SET OUTPUTNAME=%SRC_PATH%\%BUILD_TYPE%\WMCController.msi
+SET OUTPUTNAME=%SRC_PATH%\%BUILD_TYPE%\WMCController32.msi
 
 REM Cleanup leftover intermediate files
 
