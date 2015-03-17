@@ -19,7 +19,11 @@ using System.IO;
 using System.Reflection;
 using System.Diagnostics;
 using System.Net;
+using System.Collections.Generic;
 using Microsoft.MediaCenter.Hosting;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 
 namespace VmcController.AddIn.Commands
 {
@@ -30,7 +34,7 @@ namespace VmcController.AddIn.Commands
 	{
         public const string DL_32_BIT_FILE_NAME = "WMCController32.msi";
         public const string DL_64_BIT_FILE_NAME = "WMCController64.msi";
-        public const string DL_BASE_URL = "https://github.com/GeekGoneOld/MceController/releases/latest/";
+        public const string DL_BASE_URL = "https://api.github.com/repos/GeekGoneOld/MceController/releases/latest";
 
         private bool is64bit = false;
 
@@ -42,7 +46,7 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public string ShowSyntax()
         {
-            return "- not available yet but will download the latest version of the plugin to the user's desktop";
+            return "- downloads the latest version of the plugin from GitHub to the Media Center computer user's desktop";
         }
 
         private string getFilePath(string truncatedFileName)
@@ -68,29 +72,62 @@ namespace VmcController.AddIn.Commands
             OpResult opResult = new OpResult();
             try
             {
-/*                //Determine 32- or 64-bit
-                if (AddInHost.Current.MediaCenterEnvironment.CpuClass.Contains("64")) is64bit = true;
-
-                string truncatedFileName;
-                if (is64bit) truncatedFileName = DL_64_BIT_FILE_NAME.Substring(0, DL_64_BIT_FILE_NAME.IndexOf(".msi"));
-                else truncatedFileName = DL_32_BIT_FILE_NAME.Substring(0, DL_32_BIT_FILE_NAME.IndexOf(".msi"));
-
-                int counter = 1;
-                while (File.Exists(getFilePath(truncatedFileName)))
+                //don't use this on extender
+                if (AddInModule.GetPortNumber(AddInModule.m_basePortNumber) != AddInModule.m_basePortNumber)
                 {
-                    truncatedFileName = getTruncatedFileName(counter);
-                    counter++;
+                    opResult.StatusCode = OpStatusCode.BadRequest;
+                    opResult.StatusText = "Command not available on extenders.";
                 }
+                else
+                {
+                    //Determine 32- or 64-bit
+                    string baseFileName;
+                    if (AddInHost.Current.MediaCenterEnvironment.CpuClass.Contains("64"))
+                    {
+                        is64bit = true;
+                        baseFileName = DL_64_BIT_FILE_NAME.Substring(0, DL_64_BIT_FILE_NAME.IndexOf(".msi"));
+                    }
+                    {
+                        is64bit = false;
+                        baseFileName = DL_32_BIT_FILE_NAME.Substring(0, DL_64_BIT_FILE_NAME.IndexOf(".msi"));
+                    }
 
-                WebClient client = new WebClient();                
-                client.Headers.Add("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.2; .NET CLR 1.0.3705;)");
+                    WebClient client = new WebClient();
+                    client.Headers.Add("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.2; .NET CLR 1.0.3705;)");
+                    JObject jObject = JObject.Parse(client.DownloadString(DL_BASE_URL));
 
-                if (is64bit) client.DownloadFile(DL_BASE_URL + DL_64_BIT_FILE_NAME, getFilePath(truncatedFileName));
-                else client.DownloadFile(DL_BASE_URL + DL_32_BIT_FILE_NAME, getFilePath(truncatedFileName));
+                    // find right asset's download url
+                    string downloadURL = "";
+                    foreach (JToken jToken in jObject["assets"].Children())
+                    {
+                        Asset asset = JsonConvert.DeserializeObject<Asset>(jToken.ToString());
+                        if (asset.name.ToLower() == (baseFileName.ToLower() + ".msi"))
+                        {
+                            downloadURL = asset.browser_download_url;
+                            break;
+                        }
+                    }
 
-*/                opResult.StatusCode = OpStatusCode.Success;
-//                opResult.StatusText = "Downloaded " + truncatedFileName + " to desktop.";
-                opResult.StatusText = "Didn't do anything, but wait 'til this works!";
+                    if (downloadURL == "")
+                    {
+                        opResult.StatusCode = OpStatusCode.BadRequest;
+                        opResult.StatusText = "Cannot find latest release on GitHub.";
+                    }
+                    else
+                    {
+                        string truncatedFileName = baseFileName;
+                        int counter = 1;
+                        while (File.Exists(getFilePath(truncatedFileName)))
+                        {
+                            truncatedFileName = getTruncatedFileName(counter);
+                            counter++;
+                        }
+                        client.DownloadFile(downloadURL, getFilePath(truncatedFileName));
+
+                        opResult.StatusCode = OpStatusCode.Success;
+                        opResult.StatusText = "Downloaded " + truncatedFileName + ".msi to desktop.";
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -102,4 +139,10 @@ namespace VmcController.AddIn.Commands
 
         #endregion
     }
+}
+
+public class Asset
+{
+    public string name { get; set; }
+    public string browser_download_url { get; set; }
 }
