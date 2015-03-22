@@ -215,8 +215,13 @@ namespace VmcController.MceState {
 				case MEDIASTATUSPROPERTYTAG.PVR:
 				case MEDIASTATUSPROPERTYTAG.TVTuner:
 				case MEDIASTATUSPROPERTYTAG.CD:
-				case MEDIASTATUSPROPERTYTAG.DVD:
-					if ((bool) property == true) {
+                case MEDIASTATUSPROPERTYTAG.DVD:
+                case MEDIASTATUSPROPERTYTAG.PhoneCall:
+                case MEDIASTATUSPROPERTYTAG.Photos:
+                case MEDIASTATUSPROPERTYTAG.Radio:
+                case MEDIASTATUSPROPERTYTAG.Recording:
+                    if ((bool)property == true)
+                    {
                         foreach (KeyValuePair<string, object> item in MediaState.MetaData) {
                             switch (item.Key) {
                                 case "ArtistName":

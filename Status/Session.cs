@@ -75,7 +75,7 @@ namespace VmcController.Status {
 				Sink.SocketServer.SendMessage(
 					string.Format(CultureInfo.InvariantCulture, "EndSession={0}\r\n", sessionCounter)
 				);
-                Sink.SocketServer.closeClients();
+//                Sink.SocketServer.closeClients();
 			}
 		}
 		

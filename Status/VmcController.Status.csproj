@@ -75,6 +75,7 @@
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Management" />
+    <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
@@ -85,8 +86,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Helper\BufferManager.cs" />
+    <Compile Include="Helper\Commands.cs" />
+    <Compile Include="Helper\DataHolderToken.cs" />
     <Compile Include="Helper\KeyboardHook.cs" />
     <Compile Include="Helper\MediaState.cs" />
+    <Compile Include="Helper\HttpServer.cs" />
+    <Compile Include="Helper\SocketAsyncEventArgPool.cs" />
     <Compile Include="Interfaces\IMediaStatusSession.cs" />
     <Compile Include="Interfaces\IMediaStatusSink.cs" />
     <Compile Include="Session.cs" />

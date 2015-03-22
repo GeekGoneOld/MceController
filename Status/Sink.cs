@@ -37,7 +37,10 @@ namespace VmcController.Status {
 				listeningPortNumber = GetPortNumberForUserType(BASE_PORT);
 				keyboardHook = new KeyboardHook();
 				SocketServer = new TcpSocketServer();
-			}
+
+                //  Setup HTTP socket listener
+                m_httpServer = new HttpSocketServer();
+            }
 			catch (Exception ex) {
 				Trace.TraceError(ex.ToString());
 				throw;
@@ -57,7 +60,9 @@ namespace VmcController.Status {
 				SocketServer.StartListening(listeningPortNumber);
 				SocketServer.Connected += SocketConnected;
 				keyboardHook.KeyPress += KeyPressEvent;
-			}
+                m_httpServer.InitServer();
+                m_httpServer.StartListening(BASE_PORT + 10);
+            }
 			catch (Exception ex) {
 				Trace.TraceError(ex.ToString());
 				throw;
@@ -146,6 +151,11 @@ namespace VmcController.Status {
 		/// </summary>
 		/// <value>The TCP socket server.</value>
 		public static TcpSocketServer SocketServer { get; private set; }
+
+        /// <summary>
+        /// HTTP Socket Server
+        /// </summary>
+        private HttpSocketServer m_httpServer;
 
 		/// <summary>
 		/// Gets the session count.
