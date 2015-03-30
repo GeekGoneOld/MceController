@@ -36,7 +36,7 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public string ShowSyntax()
         {
-            return "<0-50|Up|Down|Mute|UnMute|Get>";
+            return "<0-50|Up|Down|Mute|UnMute|Get> (cannot set volume on extender - volume fixed at 25)";
         }
 
         public int getVolume()
@@ -63,28 +63,53 @@ namespace VmcController.AddIn.Commands
                 opResult.StatusCode = OpStatusCode.Success;
                 VolumeState volumeState = new VolumeState();
                 if (param.Equals("Up", StringComparison.InvariantCultureIgnoreCase))
-                    AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeUp();
+                    //don't use this on extender
+                    if (AddInModule.GetPortNumber(AddInModule.m_basePortNumber) != AddInModule.m_basePortNumber)
+                    {
+                        opResult.StatusCode = OpStatusCode.BadRequest;
+                        opResult.StatusText = "Command not available on extenders.";
+                    }
+                    else
+                    {
+                        AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeUp();
+                    }
                 else if (param.Equals("Down", StringComparison.InvariantCultureIgnoreCase))
-                    AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeDown();
+                    //don't use this on extender
+                    if (AddInModule.GetPortNumber(AddInModule.m_basePortNumber) != AddInModule.m_basePortNumber)
+                    {
+                        opResult.StatusCode = OpStatusCode.BadRequest;
+                        opResult.StatusText = "Command not available on extenders.";
+                    }
+                    else
+                    {
+                        AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeDown();
+                    }
                 else if (param.Equals("Mute", StringComparison.InvariantCultureIgnoreCase))
                     AddInHost.Current.MediaCenterEnvironment.AudioMixer.Mute = true;
                 else if (param.Equals("UnMute", StringComparison.InvariantCultureIgnoreCase))
                     AddInHost.Current.MediaCenterEnvironment.AudioMixer.Mute = false;
                 else if (!param.Equals("Get", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    int desiredLevel = int.Parse(param);
-                    if (desiredLevel > 50 || desiredLevel < 0)
+                //don't use this on extender
+                    if (AddInModule.GetPortNumber(AddInModule.m_basePortNumber) != AddInModule.m_basePortNumber)
                     {
                         opResult.StatusCode = OpStatusCode.BadRequest;
-                        opResult.StatusText = "Volume must be < 50 and > 0!";
+                        opResult.StatusText = "Command not available on extenders.";
                     }
-                    int volume = (int)(AddInHost.Current.MediaCenterEnvironment.AudioMixer.Volume / 1310.7);
-                    for (int level = volume; level > desiredLevel; level--)
-                        AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeDown();
+                    else
+                    {
+                        int desiredLevel = int.Parse(param);
+                        if (desiredLevel > 50 || desiredLevel < 0)
+                        {
+                            opResult.StatusCode = OpStatusCode.BadRequest;
+                            opResult.StatusText = "Volume must be < 50 and > 0!";
+                        }
+                        int volume = (int)(AddInHost.Current.MediaCenterEnvironment.AudioMixer.Volume / 1310.7);
+                        for (int level = volume; level > desiredLevel; level--)
+                            AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeDown();
 
-                    for (int level = volume; level < desiredLevel; level++)
-                        AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeUp();
-                }
+                        for (int level = volume; level < desiredLevel; level++)
+                            AddInHost.Current.MediaCenterEnvironment.AudioMixer.VolumeUp();
+                    }
                 volumeState.volume = getVolume();
                 volumeState.is_muted = isMuted();
                 opResult.ContentObject = volumeState;               

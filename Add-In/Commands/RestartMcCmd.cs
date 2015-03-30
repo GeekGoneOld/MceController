@@ -31,7 +31,7 @@ namespace VmcController.AddIn.Commands
 
         public string ShowSyntax()
         {
-            return "Restarts Media Center";
+            return "Restarts Media Center (not available on extenders)";
         }
 
         /// <summary>
@@ -45,27 +45,34 @@ namespace VmcController.AddIn.Commands
         {
 
             OpResult opResult = new OpResult();
-            foreach (Process p in Process.GetProcesses())
+            //don't use this on extender
+            if (AddInModule.GetPortNumber(AddInModule.m_basePortNumber) != AddInModule.m_basePortNumber)
             {
-                try
-                {
-                    if (p.MainModule.ModuleName.Contains("ehshell"))
-                        try
-                        {
-                            p.Kill();
-                            Process.Start("ehshell.exe");
-                            opResult.StatusCode = OpStatusCode.Success;
-                        }
-                        catch (Exception ex)
-                        {
-                            opResult.StatusCode = OpStatusCode.Exception;
-                            opResult.StatusText = ex.Message;
-                        }
-                }
-                catch (Exception)
-                {
-                }
+                opResult.StatusCode = OpStatusCode.BadRequest;
+                opResult.StatusText = "Command not available on extenders.";
             }
+            else
+                foreach (Process p in Process.GetProcesses())
+                {
+                    try
+                    {
+                        if (p.MainModule.ModuleName.Contains("ehshell"))
+                            try
+                            {
+                                p.Kill();
+                                Process.Start("ehshell.exe");
+                                opResult.StatusCode = OpStatusCode.Success;
+                            }
+                            catch (Exception ex)
+                            {
+                                opResult.StatusCode = OpStatusCode.Exception;
+                                opResult.StatusText = ex.Message;
+                            }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
             return opResult;
         }
 

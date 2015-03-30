@@ -22,7 +22,6 @@ namespace VmcController.Status {
 		private static int listeningPortNumber;
 		private static KeyboardHook keyboardHook;
 
-
 		public Sink() {
 			var debugFile = Environment.GetFolderPath(Environment.SpecialFolder.Personal) + "\\vmccdebug.txt";
 
@@ -61,7 +60,7 @@ namespace VmcController.Status {
 				SocketServer.Connected += SocketConnected;
 				keyboardHook.KeyPress += KeyPressEvent;
                 m_httpServer.InitServer();
-                m_httpServer.StartListening(BASE_PORT + 10);
+                m_httpServer.StartListening(listeningPortNumber + 10);
             }
 			catch (Exception ex) {
 				Trace.TraceError(ex.ToString());
@@ -73,8 +72,8 @@ namespace VmcController.Status {
 		public IMediaStatusSession CreateSession() {
 			Trace.TraceInformation("Sink.CreateSession called");
 			try {
-				SessionCount++;
-				return new Session(SessionCount);
+                SessionCount++;
+                return new Session(SessionCount);
 			}
 			catch (Exception ex) {
 				Trace.TraceError(ex.ToString());
@@ -89,45 +88,62 @@ namespace VmcController.Status {
 
 		private void SocketConnected(object sender, SocketEventArgs e) {
 			var sb = new StringBuilder();
+            string prefix;
 
-			try {
-				sb.AppendFormat(
-					"204 Connected (Build: {0} Clients: {1})\r\n",
-					GetVersionInfo, SocketServer.Count);
+            try
+            {
+                foreach (KeyValuePair<int, MediaState> mediaState in MediaStateDict.mediaStates)
+                {
+                    sb.AppendFormat(
+                        "204 Connected (Build: {0} Clients: {1})\r\n",
+                        GetVersionInfo, SocketServer.Count);
 
-				//  Provide current state information to the client
-				if (!string.IsNullOrEmpty(MediaState.Volume)) {
-					sb.AppendFormat("Volume={0}\r\n", MediaState.Volume);
-				}
-				if (!string.IsNullOrEmpty(MediaState.Mute)) {
-					sb.AppendFormat("Mute={0}\r\n", MediaState.Mute);
-				}
-				if (MediaState.Page != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-                    sb.AppendFormat("{0}=True\r\n", MediaState.Page);
-                    sb.AppendFormat("m_page={0}\r\n", MediaState.Page);
-                }
-				if (MediaState.MediaMode != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-                    sb.AppendFormat("{0}=True\r\n", MediaState.MediaMode);
-                    sb.AppendFormat("m_mediaMode={0}\r\n", MediaState.MediaMode);
-                }
-				if (MediaState.PlayRate != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-                    sb.AppendFormat("{0}=True\r\n", MediaState.PlayRate);
-                    sb.AppendFormat("m_playRate={0}\r\n", MediaState.PlayRate);
-                }
-				foreach (KeyValuePair<string, object> item in MediaState.MetaData)
-					sb.AppendFormat("{0}={1}\r\n", item.Key, item.Value);
+                    if (mediaState.Value.MediaMode == MediaState.MEDIASTATUSPROPERTYTAG.Recording)
+                        prefix = "BG_";
+                    else
+                        prefix = "";
 
-				//  Send the data to the connected client
-				Trace.TraceInformation(sb.ToString());
-				SocketServer.SendMessage(sb.ToString(), e.TcpClient);
-			}
-			catch (Exception ex) {
-				Trace.TraceError(ex.ToString());
-			}
-			finally {
-				Trace.Unindent();
-				Trace.TraceInformation("socketServer_Connected() End");
-			}
+                    //  Provide current state information to the client
+                    if (!string.IsNullOrEmpty(mediaState.Value.Volume))
+                    {
+                        sb.AppendFormat(prefix + "Volume={0}\r\n", mediaState.Value.Volume);
+                    }
+                    if (!string.IsNullOrEmpty(mediaState.Value.Mute))
+                    {
+                        sb.AppendFormat(prefix + "Mute={0}\r\n", mediaState.Value.Mute);
+                    }
+                    if (mediaState.Value.Page != MediaState.MEDIASTATUSPROPERTYTAG.Unknown)
+                    {
+                        sb.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.Page);
+                        sb.AppendFormat(prefix + "m_page={0}\r\n", mediaState.Value.Page);
+                    }
+                    if (mediaState.Value.MediaMode != MediaState.MEDIASTATUSPROPERTYTAG.Unknown)
+                    {
+                        sb.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.MediaMode);
+                        sb.AppendFormat(prefix + "m_mediaMode={0}\r\n", mediaState.Value.MediaMode);
+                    }
+                    if (mediaState.Value.PlayRate != MediaState.MEDIASTATUSPROPERTYTAG.Unknown)
+                    {
+                        sb.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.PlayRate);
+                        sb.AppendFormat(prefix + "m_playRate={0}\r\n", mediaState.Value.PlayRate);
+                    }
+                    foreach (KeyValuePair<string, object> item in mediaState.Value.MetaData)
+                        sb.AppendFormat(prefix + "{0}={1}\r\n", item.Key, item.Value);
+
+                    //  Send the data to the connected client
+                    Trace.TraceInformation(sb.ToString());
+                    SocketServer.SendMessage(sb.ToString(), e.TcpClient);
+                }
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError(ex.ToString());
+            }
+            finally
+            {
+                Trace.Unindent();
+                Trace.TraceInformation("socketServer_Connected() End");
+            }
 		}
 
 		private void KeyPressEvent(object sender, KeyboardHookEventArgs e) {
@@ -163,7 +179,7 @@ namespace VmcController.Status {
 		/// <value>The session count.</value>
 		public static int SessionCount { get; private set; }
 
-		/// <summary>
+        /// <summary>
 		/// Determine what TCP port to listen on. Current Session listens on BASE_PORT
 		/// Extender Sessions listens on BASE_PORT + Extender ID
 		/// </summary>

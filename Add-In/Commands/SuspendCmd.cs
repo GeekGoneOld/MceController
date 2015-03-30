@@ -26,7 +26,7 @@ namespace VmcController.AddIn.Commands
 
         public string ShowSyntax()
         {
-            return "No params required";
+            return "No params required (not available on extenders)";
         }
 
         /// <summary>
@@ -41,7 +41,14 @@ namespace VmcController.AddIn.Commands
 
             OpResult opResult = new OpResult();
             opResult.StatusCode = OpStatusCode.Success;
-            Application.SetSuspendState(PowerState.Suspend, false, false);
+            //don't use this on extender
+            if (AddInModule.GetPortNumber(AddInModule.m_basePortNumber) != AddInModule.m_basePortNumber)
+            {
+                opResult.StatusCode = OpStatusCode.BadRequest;
+                opResult.StatusText = "Command not available on extenders.";
+            }
+            else
+                Application.SetSuspendState(PowerState.Suspend, false, false);
             return opResult;
         }
 

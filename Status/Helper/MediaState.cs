@@ -14,13 +14,19 @@ namespace VmcController.MceState {
 	/// <summary>
 	/// Tracks state information
 	/// </summary>
-	public static class MediaState {
-		private static MEDIASTATUSPROPERTYTAG m_mediaMode = MEDIASTATUSPROPERTYTAG.Unknown;
-		private static MEDIASTATUSPROPERTYTAG m_playRate = MEDIASTATUSPROPERTYTAG.Unknown;
-		private static MEDIASTATUSPROPERTYTAG m_page = MEDIASTATUSPROPERTYTAG.Unknown;
-		private static Dictionary<string, object> m_metaData = new Dictionary<string, object>();
-		private static string m_volume = string.Empty;
-		private static string m_mute = string.Empty;
+
+    public static class MediaStateDict
+    {
+        public static Dictionary<int, MediaState> mediaStates = new Dictionary<int,MediaState>();
+    }
+
+    public class MediaState {
+		private MEDIASTATUSPROPERTYTAG m_mediaMode = MEDIASTATUSPROPERTYTAG.Unknown;
+		private MEDIASTATUSPROPERTYTAG m_playRate = MEDIASTATUSPROPERTYTAG.Unknown;
+		private MEDIASTATUSPROPERTYTAG m_page = MEDIASTATUSPROPERTYTAG.Unknown;
+		private Dictionary<string, object> m_metaData = new Dictionary<string, object>();
+		private string m_volume = string.Empty;
+		private string m_mute = string.Empty;
 
 		[ComVisible(false)]
 		public enum MEDIASTATUSPROPERTYTAG {
@@ -100,48 +106,48 @@ namespace VmcController.MceState {
 		/// Gets the volume.
 		/// </summary>
 		/// <value>The volume.</value>
-		public static string Volume {
-			get { return MediaState.m_volume; }
+		public string Volume {
+			get { return m_volume; }
 		}
 
 		/// <summary>
 		/// Gets the mute.
 		/// </summary>
 		/// <value>The mute.</value>
-		public static string Mute {
-			get { return MediaState.m_mute; }
+		public string Mute {
+			get { return m_mute; }
 		}
 
 		/// <summary>
 		/// Gets the meta data.
 		/// </summary>
 		/// <value>The meta data.</value>
-		public static Dictionary<string, object> MetaData {
-			get { return MediaState.m_metaData; }
+		public Dictionary<string, object> MetaData {
+			get { return m_metaData; }
 		}
 
 		/// <summary>
 		/// Gets the current page.
 		/// </summary>
 		/// <value>The page.</value>
-		public static MEDIASTATUSPROPERTYTAG Page {
-			get { return MediaState.m_page; }
+		public MEDIASTATUSPROPERTYTAG Page {
+			get { return m_page; }
 		}
 
 		/// <summary>
 		/// Gets the current play rate.
 		/// </summary>
 		/// <value>The play rate.</value>
-		public static MEDIASTATUSPROPERTYTAG PlayRate {
-			get { return MediaState.m_playRate; }
+		public MEDIASTATUSPROPERTYTAG PlayRate {
+			get { return m_playRate; }
 		}
 
 		/// <summary>
 		/// Gets the current media mode.
 		/// </summary>
 		/// <value>The media mode.</value>
-		public static MEDIASTATUSPROPERTYTAG MediaMode {
-			get { return MediaState.m_mediaMode; }
+		public MEDIASTATUSPROPERTYTAG MediaMode {
+			get { return m_mediaMode; }
 		}
 
 		/// <summary>
@@ -149,9 +155,15 @@ namespace VmcController.MceState {
 		/// </summary>
 		/// <param name="tag">The tag.</param>
 		/// <param name="property">The property.</param>
-		public static void UpdateState(MEDIASTATUSPROPERTYTAG tag, object property) {
+		public void UpdateState(MEDIASTATUSPROPERTYTAG tag, object property) {
             var sb = new StringBuilder();
-            
+            string prefix;
+
+            if (MediaMode == MediaState.MEDIASTATUSPROPERTYTAG.Recording)
+                prefix = "BG_";
+            else
+                prefix = "";
+
             if (property == null)
             {
 				return;
@@ -183,7 +195,7 @@ namespace VmcController.MceState {
 					if ((bool) property == true) {
 						m_page = tag;
 		    			Sink.SocketServer.SendMessage(
-			    			string.Format(CultureInfo.InvariantCulture, "m_page={0}\r\n", tag)
+			    			string.Format(CultureInfo.InvariantCulture, prefix + "m_page={0}\r\n", tag)
                         );
 					}
 					break;
@@ -204,7 +216,7 @@ namespace VmcController.MceState {
 					if ((bool) property == true) {
 						m_playRate = tag;
 		    			Sink.SocketServer.SendMessage(
-			    			string.Format(CultureInfo.InvariantCulture, "m_playRate={0}\r\n", tag)
+			    			string.Format(CultureInfo.InvariantCulture, prefix + "m_playRate={0}\r\n", tag)
                         );
 					}
 					break;
@@ -222,32 +234,10 @@ namespace VmcController.MceState {
                 case MEDIASTATUSPROPERTYTAG.Recording:
                     if ((bool)property == true)
                     {
-                        foreach (KeyValuePair<string, object> item in MediaState.MetaData) {
-                            switch (item.Key) {
-                                case "ArtistName":
-                                case "CurrentPicture":
-                                case "MediaName":
-                                case "ParentalAdvisoryRating":
-                                case "RadioFrequency":
-                                case "TrackName":
-                                    sb.AppendFormat("{0}={1}\r\n", item.Key, "");
-                                    break;
-                                case "MediaTime":
-                                case "TitleNumber":
-                                case "TotalTracks":
-                                case "TrackDuration":
-                                case "TrackNumber":
-                                case "TrackTime":
-                                    sb.AppendFormat("{0}={1}\r\n", item.Key, 0);
-                                    break;
-                                default:
-                                    break;
-                            }
-                        }
-                        m_metaData.Clear();
 						m_mediaMode = tag;
-                        sb.AppendFormat(string.Format(CultureInfo.InvariantCulture, "m_mediaMode={0}\r\n", tag));
-                        Sink.SocketServer.SendMessage(sb.ToString());
+                        Sink.SocketServer.SendMessage(
+                            string.Format(CultureInfo.InvariantCulture, prefix + "m_mediaMode={0}\r\n", tag)
+                        );
 					}
 					break;
 

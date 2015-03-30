@@ -195,7 +195,6 @@ namespace VmcController.AddIn
             }
             opResult.AppendFormat("=== Connection Commands: ==========");
             opResult.AppendFormat("help - Shows this page");
-            opResult.AppendFormat("exit - Closes the socket connection");
             foreach (KeyValuePair<string, IBaseCommand> cmd in m_commands)
             {
                 opResult.AppendFormat("{0} {1}", cmd.Key, (cmd.Value == null) ? "" : cmd.Value.ShowSyntax());
@@ -245,11 +244,12 @@ namespace VmcController.AddIn
             if (port != 0)
             {
                 opResult.AppendFormat("{0} Ports: {1}", header_start, header_end);
-                opResult.AppendFormat("HTTP Server port: {0} (http://your_server:{1}/)", (port + 10), (port + 10));
+                opResult.AppendFormat("HTTP command/server port: {0} (e.g http://your_server:{1}/", "4051x", 40510);
+                opResult.AppendFormat("HTTP server port (deprecated): {0} (e.g http://your_server:{1}/", "4041x", 40410);
+                opResult.AppendFormat("Streaming data server TCP port (deprecated): {0} (e.g. use PuTTY to connect to your_server:{1} raw)", "4040x", 40400);
             }
             opResult.AppendFormat("{0} Connection Commands: {1}", header_start, header_end);
             opResult.AppendFormat("<a href='/help'>help</a> - Shows this page");
-            opResult.AppendFormat("<a href='/help'>exit</a> - Closes the socket connection");
             foreach (KeyValuePair<string, IBaseCommand> cmd in m_commands)
             {
                 if (cmd.Key.StartsWith("==="))

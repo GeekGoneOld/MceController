@@ -31,6 +31,10 @@ namespace VmcController.Status
                 "It is known to work for Vista and 7, but its future is uncertain.  It is preferred that you use the command/info on " +
                 "port 4051x instead.  This provides commands as well as feedback, but some feedback is missing (e.g. Live TV channel)." +
                 "<p>" +
+                "Since there may be multiple media sessions, all are reported in no guaranteed order.  This could cause a parser to miss some media " +
+                "(e.g. MediaName could exist on multiple sessions).  To minimize this problem, any background session (Recording is the only known one) " +
+                "tags are reported prefixed with BG_ (e.g. BG_MediaName)." +
+                "<p>" +
                 "<b>volume</b> : volume setting<br>" +
                 "Possible values are:<br>" +
                 "&nbsp;&nbsp;0-50<br>" +
@@ -129,8 +133,9 @@ namespace VmcController.Status
             page.AppendFormat("{0}\r\n", page_start);
 
             page.AppendFormat("{0} Ports: {1}\r\n", header_start, header_end);
-            page.AppendFormat("HTTP server port: {0} (e.g http://your_server:{1}/\r\n", "4041x", 40410);
-            page.AppendFormat("Streaming data server TCP port: {0} (e.g. use PuTTY to connect to port {1} raw)", "4040x", 40400);
+            page.AppendFormat("HTTP command/server port: {0} (e.g http://your_server:{1}/\r\n", "4051x", 40510);
+            page.AppendFormat("HTTP server port (deprecated): {0} (e.g http://your_server:{1}/\r\n", "4041x", 40410);
+            page.AppendFormat("Streaming data server TCP port (deprecated): {0} (e.g. use PuTTY to connect to your_server:{1} raw)", "4040x", 40400);
 
             page.AppendFormat("{0} Commands: {1}\r\n", header_start, header_end);
             page.AppendFormat("<a href='/help'>help</a> - displays this help page\r\n");
@@ -145,33 +150,45 @@ namespace VmcController.Status
         public static string GetMediaInfo()
         {
 			StringBuilder page = new StringBuilder();
+            string prefix;
 
-			try
+            try
             {
-				//  Provide current state information to the client
-				if (!string.IsNullOrEmpty(MediaState.Volume)) {
-					page.AppendFormat("Volume={0}\r\n", MediaState.Volume);
-				}
-				if (!string.IsNullOrEmpty(MediaState.Mute)) {
-					page.AppendFormat("Mute={0}\r\n", MediaState.Mute);
-				}
-				if (MediaState.Page != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-                    page.AppendFormat("{0}=True\r\n", MediaState.Page);
-                }
-                page.AppendFormat("m_page={0}\r\n", MediaState.Page);
-				if (MediaState.MediaMode != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-                    page.AppendFormat("{0}=True\r\n", MediaState.MediaMode);
-                }
-                page.AppendFormat("m_mediaMode={0}\r\n", MediaState.MediaMode);
-				if (MediaState.PlayRate != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-                    page.AppendFormat("{0}=True\r\n", MediaState.PlayRate);
-                }
-                page.AppendFormat("m_playRate={0}\r\n", MediaState.PlayRate);
-				foreach (KeyValuePair<string, object> item in MediaState.MetaData)
-					page.AppendFormat("{0}={1}\r\n", item.Key, item.Value);
+                foreach (KeyValuePair<int, MediaState> mediaState in MediaStateDict.mediaStates)
+                {
+                    page.AppendFormat("SESSION {0}\r\n", mediaState.Key);
 
-				//  Send the data to the connected client
-				Trace.TraceInformation(page.ToString());
+                    if (mediaState.Value.MediaMode == MediaState.MEDIASTATUSPROPERTYTAG.Recording)
+                        prefix = "BG_";
+                    else
+                        prefix = "";
+
+				    //  Provide current state information to the client
+				    if (!string.IsNullOrEmpty(mediaState.Value.Volume)) {
+                        page.AppendFormat(prefix + "Volume={0}\r\n", mediaState.Value.Volume);
+				    }
+                    if (!string.IsNullOrEmpty(mediaState.Value.Mute))
+                    {
+					    page.AppendFormat(prefix + "Mute={0}\r\n", mediaState.Value.Mute);
+				    }
+				    if (mediaState.Value.Page != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
+                        page.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.Page);
+                    }
+                    page.AppendFormat(prefix + "m_page={0}\r\n", mediaState.Value.Page);
+				    if (mediaState.Value.MediaMode != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
+                        page.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.MediaMode);
+                    }
+                    page.AppendFormat(prefix + "m_mediaMode={0}\r\n", mediaState.Value.MediaMode);
+				    if (mediaState.Value.PlayRate != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
+                        page.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.PlayRate);
+                    }
+                    page.AppendFormat(prefix + "m_playRate={0}\r\n", mediaState.Value.PlayRate);
+				    foreach (KeyValuePair<string, object> item in mediaState.Value.MetaData)
+					    page.AppendFormat(prefix + "{0}={1}\r\n", item.Key, item.Value);
+
+				    //  Send the data to the connected client
+				    Trace.TraceInformation(page.ToString());
+                }
             }
             catch (Exception ex)
             {
@@ -180,6 +197,7 @@ namespace VmcController.Status
             finally
             {
             }
+            page.AppendFormat("status=Ok\r\n");
             return page.ToString();
         }
     }

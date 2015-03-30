@@ -15,9 +15,12 @@ namespace VmcController.Status {
 		private readonly int sessionCounter;
 		private MediaState.MEDIASTATUSPROPERTYTAG prevCheckTag;
 		private object prevCheckProp;
+        private MediaState mediaState;
 
 		public Session(int count) {
 			sessionCounter = count;
+            mediaState = new MediaState();
+            MediaStateDict.mediaStates.Add(sessionCounter, mediaState);
 
 			if (Sink.SocketServer != null) {
 				Sink.SocketServer.SendMessage(
@@ -56,11 +59,16 @@ namespace VmcController.Status {
 
 					Trace.TraceInformation("Tag  {0}={1}", tag, value);
 
+                    string prefix;
+                    if (mediaState.MediaMode == MediaState.MEDIASTATUSPROPERTYTAG.Recording)
+                        prefix = "BG_";
+                    else
+                        prefix = "";
 					Sink.SocketServer.SendMessage(
-						string.Format(CultureInfo.InvariantCulture, "{0}={1}\r\n", tag, value)
+						string.Format(CultureInfo.InvariantCulture, prefix + "{0}={1}\r\n", tag, value)
 						);
 
-					MediaState.UpdateState(tag, value);
+					mediaState.UpdateState(tag, value);
 				}
 			}
 			catch (Exception ex) {
@@ -71,13 +79,14 @@ namespace VmcController.Status {
 		public void Close() {
 			Trace.TraceInformation("Closing media session #{0}", sessionCounter);
 
+            MediaStateDict.mediaStates.Remove(sessionCounter);
+
 			if (Sink.SocketServer != null) {
 				Sink.SocketServer.SendMessage(
 					string.Format(CultureInfo.InvariantCulture, "EndSession={0}\r\n", sessionCounter)
 				);
-//                Sink.SocketServer.closeClients();
-			}
-		}
+            }
+        }
 		
 		#endregion
 	}

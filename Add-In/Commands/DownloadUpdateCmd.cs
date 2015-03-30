@@ -46,7 +46,7 @@ namespace VmcController.AddIn.Commands
         /// <returns></returns>
         public string ShowSyntax()
         {
-            return "- downloads the latest version of the plugin from GitHub to the Media Center computer user's desktop";
+            return "- downloads the latest version of the plugin from GitHub to the Media Center computer user's desktop (not available on extenders)";
         }
 
         private string getFilePath(string truncatedFileName)
