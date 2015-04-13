@@ -151,12 +151,15 @@ namespace VmcController.Status
         {
 			StringBuilder page = new StringBuilder();
             string prefix;
+            bool pg_set = false;
+            bool pr_set = false;
+            bool mm_set = false;
 
             try
             {
                 foreach (KeyValuePair<int, MediaState> mediaState in MediaStateDict.mediaStates)
                 {
-                    page.AppendFormat("SESSION {0}\r\n", mediaState.Key);
+                    page.AppendFormat("SESSION={0}\r\n", mediaState.Key);
 
                     if (mediaState.Value.MediaMode == MediaState.MEDIASTATUSPROPERTYTAG.Recording)
                         prefix = "BG_";
@@ -173,17 +176,24 @@ namespace VmcController.Status
 				    }
 				    if (mediaState.Value.Page != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
                         page.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.Page);
+                        page.AppendFormat(prefix + "m_page={0}\r\n", mediaState.Value.Page);
+                        if (prefix == "")
+                            pg_set = true;
                     }
-                    page.AppendFormat(prefix + "m_page={0}\r\n", mediaState.Value.Page);
-				    if (mediaState.Value.MediaMode != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
-                        page.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.MediaMode);
-                    }
-                    page.AppendFormat(prefix + "m_mediaMode={0}\r\n", mediaState.Value.MediaMode);
 				    if (mediaState.Value.PlayRate != MediaState.MEDIASTATUSPROPERTYTAG.Unknown) {
                         page.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.PlayRate);
+                        page.AppendFormat(prefix + "m_playRate={0}\r\n", mediaState.Value.PlayRate);
+                        if (prefix == "")
+                            pr_set = true;
                     }
-                    page.AppendFormat(prefix + "m_playRate={0}\r\n", mediaState.Value.PlayRate);
-				    foreach (KeyValuePair<string, object> item in mediaState.Value.MetaData)
+                    if (mediaState.Value.MediaMode != MediaState.MEDIASTATUSPROPERTYTAG.Unknown)
+                    {
+                        page.AppendFormat(prefix + "{0}=True\r\n", mediaState.Value.MediaMode);
+                        page.AppendFormat(prefix + "m_mediaMode={0}\r\n", mediaState.Value.MediaMode);
+                        if (prefix == "")
+                            mm_set = true;
+                    }
+                    foreach (KeyValuePair<string, object> item in mediaState.Value.MetaData)
 					    page.AppendFormat(prefix + "{0}={1}\r\n", item.Key, item.Value);
 
 				    //  Send the data to the connected client
@@ -197,6 +207,13 @@ namespace VmcController.Status
             finally
             {
             }
+            page.AppendFormat("SESSION={0}\r\n", 0);
+            if (!pg_set)
+                page.AppendFormat("m_page={0}\r\n", MediaState.MEDIASTATUSPROPERTYTAG.Unknown);
+            if (!pr_set)
+                page.AppendFormat("m_playRate={0}\r\n", MediaState.MEDIASTATUSPROPERTYTAG.Unknown);
+            if (!mm_set)
+                page.AppendFormat("m_mediaMode={0}\r\n", MediaState.MEDIASTATUSPROPERTYTAG.Unknown);
             page.AppendFormat("status=Ok\r\n");
             return page.ToString();
         }

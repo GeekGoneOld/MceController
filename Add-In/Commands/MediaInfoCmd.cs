@@ -61,43 +61,51 @@ namespace VmcController.AddIn.Commands
                 //get metadata, play_state, play rate and position if available
                 if (MediaExperienceWrapper.Instance != null)
                 {
-                    mediaInfo.metadata = MediaExperienceWrapper.Instance.MediaMetadata;
                     mediaInfo.play_state = Enum.GetName(typeof(PlayState), MediaExperienceWrapper.Instance.Transport.PlayState);
                     mediaInfo.play_rate = Enum.GetName(typeof(Play_Rate_enum), (Int32)MediaExperienceWrapper.Instance.Transport.PlayRate);
                     mediaInfo.position_sec = (Int32)Math.Round(MediaExperienceWrapper.Instance.Transport.Position.TotalSeconds);
 
-                    //search metadata to find type of media and duration
-                    Object obj;
-                    string objstr, str;
-                    if (mediaInfo.metadata.TryGetValue("TrackDuration", out obj))
+                    if (MediaExperienceWrapper.Instance.MediaMetadata != null)
                     {
-                        objstr = obj.ToString();
-                        mediaInfo.duration_sec = Convert.ToInt32(objstr);
-                        mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.StreamingContentAudio);
-                    }
-                    else if (mediaInfo.metadata.TryGetValue("Duration", out obj))
-                    {
-                        TimeSpan ts;
-                        objstr = obj.ToString();
-                        TimeSpan.TryParse(objstr, out ts);
-                        mediaInfo.duration_sec = (Int32)Math.Round(ts.TotalSeconds);
-                        if (mediaInfo.metadata.ContainsKey("ChapterTitle"))
-                        {
-                            mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.DVD);
-                        }
-                        else if (mediaInfo.metadata.TryGetValue("Name", out obj))
+                        mediaInfo.metadata = MediaExperienceWrapper.Instance.MediaMetadata;
+
+                        //search metadata to find type of media and duration
+                        Object obj;
+                        string objstr, str;
+                        if (mediaInfo.metadata.TryGetValue("TrackDuration", out obj))
                         {
                             objstr = obj.ToString();
-                            str = objstr.ToLower();
-                            if (str.EndsWith("dvr_ms") | str.EndsWith("wtv"))
+                            mediaInfo.duration_sec = Convert.ToInt32(objstr);
+                            mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.StreamingContentAudio);
+                        }
+                        else if (mediaInfo.metadata.TryGetValue("Duration", out obj))
+                        {
+                            TimeSpan ts;
+                            objstr = obj.ToString();
+                            TimeSpan.TryParse(objstr, out ts);
+                            mediaInfo.duration_sec = (Int32)Math.Round(ts.TotalSeconds);
+                            if (mediaInfo.metadata.ContainsKey("ChapterTitle"))
                             {
-                                mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.PVR);
+                                mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.DVD);
                             }
-                            else
+                            else if (mediaInfo.metadata.TryGetValue("Name", out obj))
                             {
-                                mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.StreamingContentVideo);
+                                objstr = obj.ToString();
+                                str = objstr.ToLower();
+                                if (str.EndsWith("dvr_ms") | str.EndsWith("wtv"))
+                                {
+                                    mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.PVR);
+                                }
+                                else
+                                {
+                                    mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.StreamingContentVideo);
+                                }
                             }
                         }
+                    }
+                    else
+                    {
+                        mediaInfo.play_mode = Enum.GetName(typeof(Play_Mode_enum), Play_Mode_enum.Undefined);
                     }
                 }
 
